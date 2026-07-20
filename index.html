@@ -1,0 +1,1798 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <!-- CSP: limita de onde scripts podem ser carregados e PARA ONDE dados podem ser
+         enviados (connect-src). Mesmo num eventual XSS, exfiltração fica restrita
+         aos endpoints do Firebase. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>LeadVision CRM Enterprise · Gestão Multicampi</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        body {
+            background: #f0f2f8;
+            margin: 0;
+            padding: 28px 20px;
+        }
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+        }
+        .units-bar {
+            background: white;
+            border-radius: 28px;
+            padding: 24px 24px 18px;
+            margin-bottom: 24px;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.02);
+            border: 1px solid #e6edf4;
+        }
+        .home-brand {
+            text-align: center;
+            margin-bottom: 18px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e6edf4;
+        }
+        .brand-icon {
+            font-size: 2.2rem;
+            margin-bottom: 4px;
+        }
+        .home-brand h2 {
+            margin: 0;
+            color: #0a2b3e;
+            font-size: 1.9rem;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+        }
+        .brand-subtitle {
+            margin-top: 7px;
+            color: #4a627a;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+        .brand-credit {
+            margin-top: 10px;
+            color: #6c86a3;
+            font-size: 0.76rem;
+            line-height: 1.45;
+        }
+        .brand-credit strong {
+            color: #1e4663;
+        }
+        .select-unit-title {
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #0a2b3e;
+        }
+        .units-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 12px;
+            align-items: center;
+        }
+        .unit-btn {
+            background: #eef2fa;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 40px;
+            color: #1e4663;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.85rem;
+        }
+        .unit-btn.active {
+            background: #1e4663;
+            color: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .unit-btn:hover {
+            background: #2c7da0;
+            color: white;
+        }
+        .header {
+            background: white;
+            border-radius: 28px;
+            padding: 20px 28px;
+            margin-bottom: 24px;
+            border: 1px solid #e6edf4;
+        }
+        h1 {
+            font-size: 2.1rem;
+            margin: 0 0 6px 0;
+            color: #0a2b3e;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-weight: 700;
+        }
+        .credits {
+            font-size: 0.78rem;
+            color: #5b7288;
+            margin-top: 10px;
+            border-top: 1px solid #e9edf2;
+            padding-top: 10px;
+            display: inline-block;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            line-height: 1.45;
+        }
+        .sub {
+            color: #4a627a;
+            margin-bottom: 18px;
+            border-left: 4px solid #2c7da0;
+            padding-left: 16px;
+            font-size: 0.9rem;
+        }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+        }
+        button {
+            background: #1e4663;
+            border: none;
+            padding: 8px 22px;
+            border-radius: 40px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        button:hover {
+            background: #0f3550;
+            transform: translateY(-1px);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: default;
+            transform: none;
+        }
+        .btn-outline {
+            background: white;
+            color: #1e4663;
+            border: 1px solid #cbdde9;
+        }
+        .btn-outline:hover {
+            background: #eef3fc;
+        }
+        .btn-chart {
+            background: #2c7da0;
+        }
+        .btn-danger {
+            background: #b33;
+        }
+        .btn-danger:hover {
+            background: #8b1a1a;
+        }
+        .stats-badge {
+            background: #eef2ff;
+            border-radius: 40px;
+            padding: 6px 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #1f5068;
+        }
+        .empty-state {
+            background: white;
+            border-radius: 28px;
+            padding: 60px 30px;
+            text-align: center;
+            border: 1px dashed #cbdae9;
+            margin: 30px 0;
+        }
+        .filters-area {
+            background: white;
+            border-radius: 24px;
+            padding: 18px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+            border: 1px solid #e9edf2;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 140px;
+        }
+        .filter-group label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #2c4c6e;
+            letter-spacing: 0.4px;
+        }
+        select, input {
+            padding: 8px 14px;
+            border-radius: 40px;
+            border: 1px solid #cfdfed;
+            background: white;
+            font-size: 0.85rem;
+            outline: none;
+        }
+        select:focus, input:focus {
+            border-color: #2c7da0;
+            box-shadow: 0 0 0 2px rgba(44,125,160,0.2);
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+            background: white;
+            border-radius: 24px;
+            padding: 4px 0;
+            border: 1px solid #eef2f8;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        th, td {
+            padding: 14px 12px;
+            text-align: left;
+            border-bottom: 1px solid #edf2f7;
+        }
+        th {
+            background: #fafcff;
+            font-weight: 700;
+            color: #1f4868;
+        }
+        .clickable-name {
+            color: #2c7da0;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 3px;
+        }
+        .clickable-name:hover {
+            color: #0f5b7a;
+        }
+        .contact-badge {
+            background: #eef2fa;
+            padding: 2px 10px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 28px;
+            padding: 20px 24px;
+            margin: 30px 0 20px;
+            border: 1px solid #e2edf7;
+            display: none;
+        }
+        .chart-flex {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+        }
+        .chart-box {
+            flex: 1;
+            min-width: 260px;
+            max-width: 420px;
+        }
+        canvas {
+            max-height: 260px;
+            width: 100%;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: 0.2s;
+        }
+        .modal-overlay.active {
+            visibility: visible;
+            opacity: 1;
+        }
+        .modal {
+            background: white;
+            max-width: 650px;
+            width: 94%;
+            max-height: 90vh;
+            border-radius: 28px;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.2);
+            overflow: hidden;
+            animation: fadeUp 0.2s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        @keyframes fadeUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-header {
+            background: #1e4663;
+            color: white;
+            padding: 18px 24px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            /* FIX 2: header e footer não podem encolher nem sair do fluxo do modal */
+            flex: 0 0 auto;
+        }
+        .modal-header span {
+            cursor: pointer;
+            font-size: 1.5rem;
+        }
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+            /* FIX 2: o corpo ocupa o espaço restante em vez de um max-height calculado
+               na mão. min-height:0 é o que permite o flex item rolar de verdade. */
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        .modal-footer {
+            background: white;
+            padding: 14px 24px 20px;
+            border-top: 1px solid #eef2f8;
+            box-shadow: 0 -8px 18px rgba(255,255,255,0.95);
+            flex: 0 0 auto;
+        }
+        .contact-entry {
+            background: #f8fbff;
+            border: 1px solid #dbe7f3;
+            border-radius: 22px;
+            padding: 12px;
+            margin-top: 10px;
+        }
+        .contact-entry-title {
+            font-weight: 700;
+            color: #1e4663;
+            font-size: 0.82rem;
+            margin-bottom: 8px;
+        }
+        .contact-entry label {
+            margin-top: 8px;
+            margin-bottom: 5px;
+            color: #2c4c6e;
+            font-size: 0.75rem;
+        }
+        .contact-entry select,
+        .contact-entry input {
+            width: 100%;
+        }
+        .modal-field {
+            margin-bottom: 20px;
+        }
+        .modal-field label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 6px;
+            color: #1f3b4c;
+            font-size: 0.8rem;
+        }
+        .modal-field select, .modal-field input, .modal-field textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 20px;
+            border: 1px solid #cbdae9;
+            font-size: 0.9rem;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        .btn-save {
+            background: #2c6e49;
+            width: 100%;
+            justify-content: center;
+            padding: 13px 18px;
+        }
+        .btn-save:hover {
+            background: #235739;
+        }
+        .toast-notify {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            background: #1e4663;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 60px;
+            font-weight: 500;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            z-index: 1100;
+            animation: fadeInOut 3s ease forwards;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(20px); }
+            15% { opacity: 1; transform: translateY(0); }
+            85% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(20px); visibility: hidden; }
+        }
+        .footer-note {
+            margin-top: 35px;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #6c86a3;
+        }
+        .indicator-sim {
+            color: #2c6e49;
+            font-weight: bold;
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 1.2rem;
+        }
+        .indicator-nao {
+            color: #b33;
+            font-weight: bold;
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 1.2rem;
+        }
+        .indicator-talvez {
+            color: #d68c45;
+            font-weight: bold;
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 1.2rem;
+        }
+        @media (max-width: 700px) {
+            body { padding: 12px; }
+            .filter-group { min-width: 100%; }
+            .radio-group { gap: 10px; }
+            .modal-overlay {
+                align-items: flex-start;
+                padding-top: 10px;
+                padding-bottom: 10px;
+            }
+            .modal {
+                width: 98%;
+                max-height: 96vh;
+                border-radius: 18px;
+            }
+            .modal-header {
+                padding: 13px 16px;
+                font-size: 1rem;
+            }
+            .modal-header span {
+                font-size: 1.25rem;
+            }
+            .modal-body {
+                padding: 14px;
+                /* FIX 2: o max-height que existia aqui só descontava o header (58px)
+                   e ignorava o footer, empurrando o botão Salvar para fora do
+                   modal (que tem overflow:hidden). O flex do .modal-body resolve. */
+            }
+            .modal-field {
+                margin-bottom: 14px;
+            }
+            .modal-field label {
+                font-size: 0.82rem;
+            }
+            .modal-field select,
+            .modal-field input,
+            .modal-field textarea {
+                font-size: 16px;
+                padding: 11px 13px;
+                border-radius: 18px;
+            }
+            .btn-save {
+                padding: 14px;
+                font-size: 0.95rem;
+            }
+        }
+        /* ---- Autenticação ---- */
+        #authOverlay {
+            position: fixed; inset: 0; z-index: 5000;
+            background: #f0f2f8;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .auth-box {
+            background: #fff; border: 1px solid #e6edf4; border-radius: 28px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+            padding: 34px 30px; width: 100%; max-width: 400px; text-align: center;
+        }
+        .auth-box h2 { margin: 8px 0 4px; color: #0a2b3e; font-size: 1.6rem; }
+        .auth-box .auth-sub { color: #4a627a; font-size: 0.88rem; margin-bottom: 20px; }
+        .auth-box label { display: block; text-align: left; font-size: 0.8rem; font-weight: 700; color: #1e4663; margin: 12px 0 5px; }
+        .auth-box input {
+            width: 100%; padding: 12px 14px; border: 1px solid #cfdae6; border-radius: 14px;
+            font-size: 16px; background: #f8fafc;
+        }
+        .auth-box button {
+            width: 100%; margin-top: 18px; padding: 13px; border: 0; border-radius: 14px;
+            background: #1e4663; color: #fff; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+        }
+        .auth-box button:disabled { opacity: .6; cursor: not-allowed; }
+        .auth-err { color: #b33; font-size: 0.83rem; min-height: 18px; margin-top: 12px; font-weight: 600; }
+        .auth-forgot { display: inline-block; margin-top: 14px; font-size: 0.8rem; color: #2c7da0; cursor: pointer; text-decoration: underline; background: none; border: none; }
+        #userBar {
+            display: none; position: fixed; top: 10px; right: 12px; z-index: 4000;
+            background: #0a2b3e; color: #fff; border-radius: 40px;
+            padding: 7px 8px 7px 16px; font-size: 0.8rem; font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            display: none; align-items: center; gap: 10px;
+        }
+        #userBar button {
+            border: 0; border-radius: 30px; padding: 6px 13px; cursor: pointer;
+            background: #d64545; color: #fff; font-weight: 700; font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+<!-- Tela de login: nada da aplicação é liberado (nem dados carregados) antes da
+     autenticação no Firebase. A proteção real dos dados está nas Security Rules
+     do Realtime Database — esta tela é só a porta de entrada. -->
+<div id="authOverlay">
+    <div class="auth-box">
+        <div style="font-size:2.2rem;">🔐</div>
+        <h2>LeadVision CRM</h2>
+        <div class="auth-sub">Acesso restrito · entre com sua conta</div>
+        <label for="authEmail">E-mail</label>
+        <input type="email" id="authEmail" autocomplete="username" placeholder="seu@email.com">
+        <label for="authPass">Senha</label>
+        <input type="password" id="authPass" autocomplete="current-password" placeholder="••••••••">
+        <button id="authBtn">Entrar</button>
+        <div class="auth-err" id="authErr"></div>
+        <button type="button" class="auth-forgot" id="authForgot">Esqueci minha senha</button>
+    </div>
+</div>
+<div id="userBar"><span id="userBarInfo"></span><button id="logoutBtn">Sair</button></div>
+<div class="container">
+    <div class="units-bar">
+        <div class="home-brand">
+            <div class="brand-icon">📊</div>
+            <h2>LeadVision CRM Enterprise</h2>
+            <div class="brand-subtitle">
+                Plataforma Inteligente para Gestão de Inscrições, Relacionamento Acadêmico e Conversão de Leads
+            </div>
+            <div class="brand-credit">
+                LeadVision CRM Enterprise © 2026 | Idealizado e desenvolvido por
+                <strong>Antonio Carlos de Lima Filho</strong> • Diretor da UNINASSAU Salvador •
+                Soluções Inteligentes para Captação, Relacionamento Acadêmico e Gestão Orientada por Dados
+            </div>
+        </div>
+
+        <div class="select-unit-title">🏢 Selecione a unidade:</div>
+        <div class="units-grid" id="unitsGrid"></div>
+    </div>
+
+    <div id="crmContent" style="display: none;">
+        <div class="header">
+            <h1>📋 LeadVision CRM Enterprise</h1>
+            <div class="credits">LeadVision CRM Enterprise © 2026 | Idealizado e desenvolvido por Antonio Carlos de Lima Filho • Diretor da UNINASSAU Salvador • Soluções Inteligentes para Captação, Relacionamento Acadêmico e Gestão Orientada por Dados</div>
+            <div class="sub">Plataforma Inteligente para Gestão de Inscrições, Relacionamento Acadêmico, Conversão de Leads e Acompanhamento Estratégico Multicampi</div>
+            <div class="toolbar">
+                <div>
+                    <button id="uploadBtn">📂 Anexar Excel (novos leads)</button>
+                    <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none" />
+                    <button id="exportBtn" class="btn-outline">📎 Exportar dados + acompanhamentos</button>
+                    <button id="toggleChartBtn" class="btn-chart">📊 Mostrar Gráficos</button>
+                </div>
+                <div class="stats-badge" id="statsInfo">⏳ Nenhum dado carregado</div>
+            </div>
+        </div>
+
+        <div class="filters-area" id="filtersPanel">
+            <div class="filter-group"><label>🏷️ Classificação</label><select id="filterClassificacao"><option value="">Todas</option></select></div>
+            <div class="filter-group"><label>📚 Curso</label><select id="filterCurso"><option value="">Todos os cursos</option></select></div>
+            <div class="filter-group"><label>💰 Status Transação</label><select id="filterStatusPag"><option value="">Todos</option></select></div>
+            <div class="filter-group"><label>🌆 Cidade</label><select id="filterCidade"><option value="">Todas</option></select></div>
+            <div class="filter-group"><label>✅ Inscrição Ativa</label><select id="filterAtiva"><option value="">Todas</option><option value="SIM">SIM</option><option value="NÃO">NÃO</option></select></div>
+            <div class="filter-group"><label>🔍 Nome / Email</label><input type="text" id="searchText" placeholder="Pesquisar..."></div>
+            <button id="clearFiltersBtn" class="btn-outline">Limpar filtros</button>
+            <button id="clearDataBtn" class="btn-danger">🗑️ Limpar dados desta unidade</button>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+            <div style="font-size: 3rem;">📂</div>
+            <h3>Nenhum lead carregado nesta unidade</h3>
+            <p>Clique em "Anexar Excel" e selecione uma planilha.<br><strong>Merge por telefone:</strong> apenas registros com celular ainda não cadastrado serão adicionados.</p>
+            <button id="uploadEmptyBtn">➕ Selecionar Excel</button>
+        </div>
+
+        <div id="dataContent" style="display: none;">
+            <div class="table-wrapper">
+                <table id="dataTable">
+                    <thead>
+                        <tr><th>Nome (clique para acompanhar)</th><th>Email</th><th>Celular</th><th>Curso</th><th>Classificação</th><th>Status Pag.</th><th>Cidade/UF</th><th>Último contato</th></tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="chartPanel" class="chart-container">
+            <h3>📈 Métricas dinâmicas</h3>
+            <div class="chart-flex">
+                <div class="chart-box"><canvas id="chartClassificacao"></canvas></div>
+                <div class="chart-box"><canvas id="chartCursosTop"></canvas></div>
+                <div class="chart-box"><canvas id="chartPagamento"></canvas></div>
+            </div>
+        </div>
+        <div class="footer-note">* Clique no nome para registrar contato. ✅ verde = vai matricular | ❌ vermelho = não vai matricular | 🟠 laranja = talvez</div>
+    </div>
+</div>
+
+<!-- Modal de acompanhamento -->
+<div id="contactModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <span>📞 Acompanhamento de Lead</span>
+            <span id="closeModalBtn" style="cursor:pointer;">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div id="modalStudentName" style="font-weight:bold; margin-bottom:16px; background:#eef2fa; padding:8px 16px; border-radius:40px;"></div>
+            <!-- FIX 3: guarda a CHAVE do lead, não o índice. O índice quebrava quando
+                 o listener do Firebase trocava o masterData com o modal aberto. -->
+            <input type="hidden" id="modalStudentKey">
+
+            <!-- CAMPO EXTRA: Classificação editável -->
+            <div class="modal-field">
+                <label>🏷️ Classificação do lead:</label>
+                <input type="text" id="modalClassificacao" placeholder="Ex.: Atendimento, Aguardando matrícula, Matriculado...">
+            </div>
+
+            <!-- CAMPO 1: Entrou em contato? -->
+            <div class="modal-field">
+                <label>✅ Entrou em contato?</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="contatoRealizado" value="SIM"> SIM</label>
+                    <label><input type="radio" name="contatoRealizado" value="NAO"> NÃO</label>
+                </div>
+            </div>
+
+            <!-- CAMPO 2: Houve retorno? -->
+            <div class="modal-field">
+                <label>🔄 Houve retorno?</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="houveRetorno" value="SIM"> SIM</label>
+                    <label><input type="radio" name="houveRetorno" value="NAO"> NÃO</label>
+                </div>
+            </div>
+
+            <!-- CAMPO 3: Até três responsáveis pelo contato, cada um com data e horário -->
+            <div class="modal-field">
+                <label>👥 Quem realizou esse contato? <small style="font-weight:400;color:#6c86a3;">(até 3 contatos registrados)</small></label>
+
+                <div class="contact-entry">
+                    <div class="contact-entry-title">1º contato</div>
+                    <label>Responsável:</label>
+                    <select id="responsavelContato1">
+                        <option value="">1º responsável</option>
+                        <option value="Coordenação">Coordenação</option>
+                        <option value="QG">QG</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Assistente">Assistente</option>
+                    </select>
+                    <label>📅 Data e horário do 1º contato:</label>
+                    <input type="datetime-local" id="dataHoraContato1">
+                </div>
+
+                <div class="contact-entry">
+                    <div class="contact-entry-title">2º contato</div>
+                    <label>Responsável:</label>
+                    <select id="responsavelContato2">
+                        <option value="">2º responsável (opcional)</option>
+                        <option value="Coordenação">Coordenação</option>
+                        <option value="QG">QG</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Assistente">Assistente</option>
+                    </select>
+                    <label>📅 Data e horário do 2º contato:</label>
+                    <input type="datetime-local" id="dataHoraContato2">
+                </div>
+
+                <div class="contact-entry">
+                    <div class="contact-entry-title">3º contato</div>
+                    <label>Responsável:</label>
+                    <select id="responsavelContato3">
+                        <option value="">3º responsável (opcional)</option>
+                        <option value="Coordenação">Coordenação</option>
+                        <option value="QG">QG</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Assistente">Assistente</option>
+                    </select>
+                    <label>📅 Data e horário do 3º contato:</label>
+                    <input type="datetime-local" id="dataHoraContato3">
+                </div>
+            </div>
+
+            <!-- CAMPO 4: Vai realizar a matrícula? - COM TALVEZ -->
+            <div class="modal-field">
+                <label>🎓 Vai realizar a matrícula?</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="vaiMatricular" value="SIM"> SIM</label>
+                    <label><input type="radio" name="vaiMatricular" value="NAO"> NÃO</label>
+                    <label><input type="radio" name="vaiMatricular" value="TALVEZ"> TALVEZ</label>
+                </div>
+            </div>
+
+            <!-- CAMPO 5: Nome do contato (aparece se NÃO) -->
+            <div class="modal-field" id="nomeContatoField" style="display:none;">
+                <label>👤 Nome do contato responsável pelo retorno:</label>
+                <input type="text" id="nomeContato" placeholder="Digite o nome da pessoa que retornou o contato">
+            </div>
+
+            <!-- CAMPO 6: Data prevista da matrícula (aparece se SIM) -->
+            <div class="modal-field" id="dataMatriculaField" style="display:none;">
+                <label>📅 Data prevista da matrícula:</label>
+                <input type="date" id="dataMatricula">
+            </div>
+
+            <!-- CAMPO 7: Motivo (aparece se NÃO) -->
+            <div class="modal-field" id="motivoNaoField" style="display:none;">
+                <label>❌ Por que não vai realizar a matrícula?</label>
+                <textarea id="motivoNao" rows="2" placeholder="Descreva o motivo..."></textarea>
+            </div>
+
+            <!-- CAMPO 8: Observação (aparece se TALVEZ) -->
+            <div class="modal-field" id="observacaoTalvezField" style="display:none;">
+                <label>📝 Observação sobre o "talvez":</label>
+                <textarea id="observacaoTalvez" rows="2" placeholder="Descreva o que está pendente para decidir..."></textarea>
+            </div>
+
+        </div>
+        <div class="modal-footer">
+            <button id="saveContactBtn" class="btn-save">💾 Salvar acompanhamento</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script>
+    /* =========================================================================
+       MODELO DE SEGURANÇA (v2)
+       -------------------------------------------------------------------------
+       - Login real via Firebase Authentication (e-mail/senha). Não existe mais
+         nenhuma senha no código-fonte.
+       - Autorização no SERVIDOR via Security Rules do Realtime Database
+         (arquivo database.rules.json — precisa estar publicado no console):
+           · /users/{uid}: perfil de acesso (role admin|user, active, units)
+             gravado apenas pelo script de setup / administradores.
+           · Leitura de uma unidade: só admin ou usuário com a unidade liberada.
+           · Importar planilha / limpar dados (escrita de masterData, colMap,
+             ou do nó inteiro): SÓ admin.
+           · Usuário de unidade: grava acompanhamentos e edita campos já
+             existentes dos leads (ex.: classificação) — nunca cria/apaga base.
+       - O apiKey abaixo NÃO é segredo: ele apenas identifica o projeto. Sem as
+         rules publicadas, porém, o banco fica aberto — publique-as primeiro.
+       - A visibilidade de botões por papel aqui no client é só conveniência de
+         UI; a barreira de verdade são as rules.
+       ========================================================================= */
+
+    // ---------- FIREBASE REALTIME DATABASE ----------
+    const firebaseConfig = {
+        // Chave de API da Web: Console Firebase > Configurações do projeto >
+        // Geral > "Chave de API da Web". Não é segredo (só identifica o
+        // projeto); a proteção são as Security Rules + Authentication.
+        apiKey: "COLE_AQUI_A_CHAVE_DE_API_WEB",
+        authDomain: "projetoantonio1-cae75.firebaseapp.com",
+        databaseURL: "https://projetoantonio1-cae75-default-rtdb.firebaseio.com",
+        projectId: "projetoantonio1-cae75"
+        // storageBucket/messagingSenderId/appId omitidos de propósito:
+        // Auth + Realtime Database não os usam.
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const realtimeDB = firebase.database();
+    const authFB = firebase.auth();
+    let currentUnitRef = null;
+
+    function unitPath(unitName) {
+        return "leadvision_units/" + String(unitName)
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9_-]/g, "_")
+            .toLowerCase();
+    }
+    function unitSlug(unitName) {
+        return unitPath(unitName).split("/")[1];
+    }
+
+    // ---------- ACESSO ----------
+    // Perfil vem de /users/{uid} no RTDB (gravado pelo setup-firebase.mjs).
+    // userProfile = { nome, email, role: 'admin'|'user', active, units: {slug:true} }
+    let userProfile = null;
+    let isAdmin = false;
+
+    const UNITS = [
+        "Petrolina", "Arapiraca", "Serra Talhada", "Salvador", "João Pessoa",
+        "UNIFAEL Curitiba", "Juazeiro do Norte", "Vitória da Conquista",
+        "Caruaru", "Barreiras", "UNIFAEL Lapa", "Rio de Janeiro", "Sobral",
+        "Garanhuns", "UNIFAEL Porto Alegre", "UNIFAEL Florianópolis", "UNI7"
+    ];
+
+    function canAccessUnit(unitName) {
+        if (!userProfile || userProfile.active !== true) return false;
+        if (isAdmin) return true;
+        return !!(userProfile.units && userProfile.units[unitSlug(unitName)] === true);
+    }
+
+    const DEFAULT_COLMAP = {
+        nome: "Nome da Pessoa", email: "Email da Pessoa", celular: "Celular da Pessoa",
+        cidade: "Cidade do Endereço", estado: "Estado", curso: "Curso",
+        classificacao: "Classificação", statusPag: "Transação Status", inscricaoAtiva: "Inscricao Ativa"
+    };
+
+    let currentUnit = null;
+    let unitData = {};
+    let masterData = [];
+    let filteredData = [];
+    let acompanhamentos = {};
+    let colMap = Object.assign({}, DEFAULT_COLMAP);
+    let charts = { class: null, curso: null, pag: null };
+
+    // DOM elements
+    const crmContainer = document.getElementById("crmContent");
+    const emptyStateDiv = document.getElementById("emptyState");
+    const dataContentDiv = document.getElementById("dataContent");
+    const statsSpan = document.getElementById("statsInfo");
+    const exportBtn = document.getElementById("exportBtn");
+    const toggleChartBtn = document.getElementById("toggleChartBtn");
+    const chartPanel = document.getElementById("chartPanel");
+    const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+    const clearDataBtn = document.getElementById("clearDataBtn");
+    const filterClass = document.getElementById("filterClassificacao");
+    const filterCurso = document.getElementById("filterCurso");
+    const filterStatus = document.getElementById("filterStatusPag");
+    const filterCidade = document.getElementById("filterCidade");
+    const filterAtiva = document.getElementById("filterAtiva");
+    const searchText = document.getElementById("searchText");
+    const modal = document.getElementById("contactModal");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+    const saveContactBtn = document.getElementById("saveContactBtn");
+    const modalStudentNameSpan = document.getElementById("modalStudentName");
+    const modalStudentKey = document.getElementById("modalStudentKey");
+    const modalClassificacaoInput = document.getElementById("modalClassificacao");
+    const tableBody = document.getElementById("tableBody");
+    const dataTable = document.getElementById("dataTable");
+
+    function showNotification(msg, isError = false) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-notify';
+        toast.style.backgroundColor = isError ? '#b33' : '#1e4663';
+        toast.innerText = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => { if(toast.parentNode) toast.remove(); }, 3000);
+    }
+
+    /* FIX 1: o SheetJS devolve célula numérica como Number (celular gravado como
+       número na planilha é o caso mais comum). Chamar .trim()/.toLowerCase()
+       direto nisso lançava "trim is not a function" e derrubava a importação
+       inteira. txt() normaliza qualquer valor de célula para string. */
+    function txt(v) {
+        if (v === null || v === undefined) return "";
+        if (v instanceof Date) return v.toISOString();
+        return String(v).trim();
+    }
+
+    /* FIX 1 (dedupe): telefone precisa ser comparado só por dígitos, senão
+       "(82) 99999-8888" e "82999998888" entram como leads diferentes. */
+    function phoneKey(v) {
+        return txt(v).replace(/\D/g, "");
+    }
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>"']/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            if (m === '"') return '&quot;';
+            return '&#39;';
+        });
+    }
+
+    function getLocalDateTimeValue(date = new Date()) {
+        const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 16);
+    }
+
+    function formatDateTimeBR(value) {
+        if (!value) return "data não registrada";
+        if (String(value).includes("T")) {
+            const [data, hora] = String(value).split("T");
+            const [ano, mes, dia] = data.split("-");
+            return `${dia}/${mes}/${ano} ${hora}`;
+        }
+        return value;
+    }
+
+    function sanitizeObjectKey(key) {
+        // O Realtime Database não aceita . # $ / [ ] nos nomes dos campos.
+        // Algumas planilhas podem trazer cabeçalhos com esses caracteres.
+        const clean = String(key === null || key === undefined ? "" : key)
+            .replace(/[.#$/\[\]]/g, "_")
+            .replace(/[\u0000-\u001F\u007F]/g, "");
+        // Chave vazia também é rejeitada pelo Firebase.
+        return clean.trim() === "" ? "_" : clean;
+    }
+
+    function sanitizeRowForFirebase(row) {
+        const clean = {};
+        Object.keys(row || {}).forEach(originalKey => {
+            const safeKey = sanitizeObjectKey(originalKey);
+            const value = row[originalKey];
+            clean[safeKey] = value === undefined ? "" : value;
+        });
+        return clean;
+    }
+
+    function sanitizeColMapForFirebase(map) {
+        const clean = {};
+        Object.keys(map || {}).forEach(k => {
+            clean[k] = sanitizeObjectKey(map[k]);
+        });
+        return clean;
+    }
+
+    function cleanFirebaseValue(value) {
+        if (value === undefined) return "";
+        if (value === null) return null;
+        if (typeof value !== "object") return value;
+        if (Array.isArray(value)) return value.map(cleanFirebaseValue);
+        const clean = {};
+        Object.keys(value).forEach(k => {
+            clean[sanitizeObjectKey(k)] = cleanFirebaseValue(value[k]);
+        });
+        return clean;
+    }
+
+    /* FIX 4: persistCurrentUnit() agora usa update() e NÃO toca em
+       acompanhamentos. Antes fazia .set() do nó inteiro, então uma importação
+       apagava os acompanhamentos salvos por outro usuário nos segundos
+       anteriores (last-write-wins no nó inteiro). */
+    function persistCurrentUnit() {
+        if (!currentUnit) return Promise.resolve();
+
+        try {
+            const firebaseColMap = sanitizeColMapForFirebase(colMap);
+            const firebaseMasterData = (masterData || []).map(sanitizeRowForFirebase);
+
+            const updates = {
+                masterData: firebaseMasterData.length ? firebaseMasterData : null,
+                colMap: firebaseColMap,
+                unidade: currentUnit,
+                atualizadoEm: new Date().toISOString()
+            };
+
+            return realtimeDB.ref(unitPath(currentUnit))
+                .update(updates)
+                .then(() => {
+                    console.log("✅ Dados salvos com sucesso na nuvem:", currentUnit, updates.atualizadoEm);
+                    return updates;
+                })
+                .catch(err => {
+                    console.error(err);
+                    showNotification("Erro ao salvar na nuvem: " + err.message, true);
+                    throw err;
+                });
+        } catch (err) {
+            console.error(err);
+            showNotification("Erro ao preparar os dados para salvar: " + err.message, true);
+            return Promise.reject(err);
+        }
+    }
+
+    function destroyCharts() {
+        ["class", "curso", "pag"].forEach(k => {
+            if (charts[k]) { charts[k].destroy(); charts[k] = null; }
+        });
+    }
+
+    function closeChartPanel() {
+        chartPanel.style.display = "none";
+        toggleChartBtn.textContent = "📊 Mostrar Gráficos";
+        destroyCharts();
+    }
+
+    /* FIX 5: renderCurrentUnitState() é chamado a cada evento do listener,
+       inclusive depois do seu próprio save. Antes ele fechava o painel de
+       gráficos e destruía os charts toda vez. Agora applyFilters() redesenha
+       os gráficos se o painel estiver aberto, e o painel só fecha na troca
+       de unidade (loadUnitData). */
+    function renderCurrentUnitState() {
+        updateFilterOptions();
+        applyFilters();
+        const hasData = masterData.length > 0;
+        emptyStateDiv.style.display = hasData ? "none" : "block";
+        dataContentDiv.style.display = hasData ? "block" : "none";
+        crmContainer.style.display = "block";
+    }
+
+    function loadUnitData(unitName) {
+        currentUnit = unitName;
+
+        if (currentUnitRef) {
+            currentUnitRef.off();
+        }
+
+        // Troca de unidade: aí sim zera o painel de gráficos.
+        closeChartPanel();
+
+        document.querySelectorAll('.unit-btn').forEach(btn => {
+            if (btn.getAttribute('data-unit') === unitName) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+
+        statsSpan.innerHTML = "☁️ Carregando dados da nuvem...";
+        crmContainer.style.display = "block";
+
+        currentUnitRef = realtimeDB.ref(unitPath(unitName));
+        currentUnitRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+
+            if (data) {
+                // Firebase devolve array esparso como objeto: normaliza pra array densa.
+                const raw = data.masterData || [];
+                masterData = Array.isArray(raw) ? raw.filter(Boolean) : Object.values(raw).filter(Boolean);
+                acompanhamentos = data.acompanhamentos || {};
+                colMap = data.colMap || Object.assign({}, DEFAULT_COLMAP);
+                unitData[unitName] = data;
+            } else {
+                masterData = [];
+                acompanhamentos = {};
+                colMap = Object.assign({}, DEFAULT_COLMAP);
+                unitData[unitName] = { masterData: [], acompanhamentos: {}, colMap, unidade: unitName };
+                // As rules só permitem escrever colMap/unidade para admin; usuário
+                // comum numa unidade vazia fica só com os defaults locais.
+                if (isAdmin) {
+                    currentUnitRef.update({ colMap: sanitizeColMapForFirebase(colMap), unidade: unitName });
+                }
+            }
+
+            renderCurrentUnitState();
+        }, (error) => {
+            console.error(error);
+            showNotification("Erro ao carregar dados da nuvem: " + error.message, true);
+        });
+    }
+
+    function clearCurrentUnitData() {
+        if (!currentUnit) return;
+        // Gate de UI; a barreira real é a rule (escrita do nó da unidade = só admin).
+        if (!isAdmin) { showNotification("Apenas administradores podem limpar os dados.", true); return; }
+        if (!confirm(`Apagar TODOS os leads e acompanhamentos de "${currentUnit}"? Esta ação não pode ser desfeita.`)) return;
+
+        masterData = [];
+        acompanhamentos = {};
+        unitData[currentUnit] = { masterData: [], acompanhamentos: {}, colMap };
+
+        // Limpeza é a única operação que legitimamente apaga o nó inteiro.
+        realtimeDB.ref(unitPath(currentUnit)).set({
+            masterData: null,
+            acompanhamentos: null,
+            colMap: sanitizeColMapForFirebase(colMap),
+            unidade: currentUnit,
+            atualizadoEm: new Date().toISOString()
+        }).then(() => {
+            showNotification("✅ Dados removidos e alteração salva na nuvem.");
+        }).catch(err => {
+            console.error(err);
+            showNotification("❌ Erro ao salvar limpeza na nuvem: " + err.message, true);
+        });
+
+        updateFilterOptions();
+        applyFilters();
+        emptyStateDiv.style.display = "block";
+        dataContentDiv.style.display = "none";
+        closeChartPanel();
+    }
+
+    function sanitizeFirebaseKey(value) {
+        // O Realtime Database não permite . # $ / [ ] em nomes de chaves.
+        // Como e-mails possuem ponto, sem esta limpeza o botão Salvar pode falhar.
+        return txt(value)
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[.#$/\[\]]/g, "_")
+            .replace(/[^a-z0-9_-]/g, "_")
+            .replace(/_+/g, "_")
+            .replace(/^_+|_+$/g, "");
+    }
+
+    function getLeadKey(row, idxFallback) {
+        const email = sanitizeFirebaseKey(row[colMap.email]);
+        if(email) return `email_${email}`;
+        const phone = sanitizeFirebaseKey(row[colMap.celular]);
+        if(phone) return `phone_${phone}`;
+        return `fallback_${idxFallback}`;
+    }
+
+    /* FIX 3: resolve o lead pela chave em vez de confiar num índice que pode
+       ter mudado enquanto o modal estava aberto. */
+    function findRowIndexByKey(key) {
+        if (!key) return -1;
+        for (let i = 0; i < masterData.length; i++) {
+            if (getLeadKey(masterData[i], i) === key) return i;
+        }
+        return -1;
+    }
+
+    function updateFilterOptions() {
+        if(!masterData.length) {
+            filterClass.innerHTML = '<option value="">Todas</option>';
+            filterCurso.innerHTML = '<option value="">Todos os cursos</option>';
+            filterStatus.innerHTML = '<option value="">Todos</option>';
+            filterCidade.innerHTML = '<option value="">Todas</option>';
+            return;
+        }
+        const classSet = new Set(), cursoSet = new Set(), statusSet = new Set(), cidadeSet = new Set();
+        masterData.forEach(row => {
+            const c = txt(row[colMap.classificacao]); if(c) classSet.add(c);
+            const cr = txt(row[colMap.curso]); if(cr) cursoSet.add(cr);
+            const st = txt(row[colMap.statusPag]); if(st) statusSet.add(st);
+            const cid = txt(row[colMap.cidade]); if(cid) cidadeSet.add(cid);
+        });
+        const oldClass = filterClass.value, oldCurso = filterCurso.value, oldStatus = filterStatus.value, oldCidade = filterCidade.value;
+        filterClass.innerHTML = '<option value="">Todas</option>' + Array.from(classSet).sort().map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        filterCurso.innerHTML = '<option value="">Todos os cursos</option>' + Array.from(cursoSet).sort().map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        filterStatus.innerHTML = '<option value="">Todos</option>' + Array.from(statusSet).sort().map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        filterCidade.innerHTML = '<option value="">Todas</option>' + Array.from(cidadeSet).sort().map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        if(oldClass && classSet.has(oldClass)) filterClass.value = oldClass;
+        if(oldCurso && cursoSet.has(oldCurso)) filterCurso.value = oldCurso;
+        if(oldStatus && statusSet.has(oldStatus)) filterStatus.value = oldStatus;
+        if(oldCidade && cidadeSet.has(oldCidade)) filterCidade.value = oldCidade;
+    }
+
+    function applyFilters() {
+        if(!masterData.length) { filteredData = []; renderTable(); updateStats(); return; }
+        const classVal = filterClass.value, cursoVal = filterCurso.value, statusVal = filterStatus.value, cidadeVal = filterCidade.value, ativaVal = filterAtiva.value;
+        const searchTerm = searchText.value.toLowerCase().trim();
+        filteredData = masterData.filter(row => {
+            // FIX 1: txt() em tudo — célula numérica quebrava toLowerCase/toUpperCase.
+            const classif = txt(row[colMap.classificacao]);
+            const curso = txt(row[colMap.curso]);
+            const status = txt(row[colMap.statusPag]);
+            const cidade = txt(row[colMap.cidade]);
+            const ativa = txt(row[colMap.inscricaoAtiva]).toUpperCase();
+            const nome = txt(row[colMap.nome]).toLowerCase();
+            const email = txt(row[colMap.email]).toLowerCase();
+            if(classVal && classif !== classVal) return false;
+            if(cursoVal && curso !== cursoVal) return false;
+            if(statusVal && status !== statusVal) return false;
+            if(cidadeVal && cidade !== cidadeVal) return false;
+            if(ativaVal && ativa !== ativaVal.toUpperCase()) return false;
+            if(searchTerm && !(nome.includes(searchTerm) || email.includes(searchTerm))) return false;
+            return true;
+        });
+        renderTable();
+        updateStats();
+        if(chartPanel.style.display === "block") renderCharts();
+    }
+
+    function updateStats() {
+        const cloud = currentUnit ? "☁️ Nuvem ativa | " : "";
+        statsSpan.innerHTML = `${cloud}📌 Exibindo ${filteredData.length} leads | Total base: ${masterData.length}`;
+    }
+
+    function getContatosRegistrados(data) {
+        if (!data) return [];
+        if (Array.isArray(data.contatos) && data.contatos.length) {
+            return data.contatos
+                .filter(c => c && c.responsavel)
+                .slice(0, 3);
+        }
+
+        const responsaveis = Array.isArray(data.responsaveis)
+            ? data.responsaveis
+            : [data.responsavel1 || data.responsavel || "", data.responsavel2 || "", data.responsavel3 || ""];
+
+        const datas = [
+            data.dataHoraContato1 || data.dataHoraContato || "",
+            data.dataHoraContato2 || "",
+            data.dataHoraContato3 || ""
+        ];
+
+        return responsaveis.map((responsavel, index) => ({
+            responsavel,
+            dataHora: datas[index] || ""
+        })).filter(c => c.responsavel).slice(0, 3);
+    }
+
+    function getResponsaveisTexto(data) {
+        const contatos = getContatosRegistrados(data);
+        if (contatos.length) {
+            return contatos.map(c => c.responsavel).join(" | ");
+        }
+        return data && data.responsavel ? data.responsavel : "";
+    }
+
+    function getContatosResumoHtml(data) {
+        const contatos = getContatosRegistrados(data);
+        if (!contatos.length) return "?";
+        return contatos.map((c, index) => {
+            const dataTexto = c.dataHora ? ` <small style="color:#6c86a3;">(${escapeHtml(formatDateTimeBR(c.dataHora))})</small>` : "";
+            return `${index + 1}º ${escapeHtml(c.responsavel)}${dataTexto}`;
+        }).join("<br>");
+    }
+
+    function getLastContactSummary(row, idx) {
+        const key = getLeadKey(row, idx);
+        const data = acompanhamentos[key];
+        if (data && data.contatoRealizado === "SIM") {
+            const contatosResumo = getContatosResumoHtml(data);
+            let matriculaIcon = '';
+            if (data.vaiMatricular === "SIM") {
+                matriculaIcon = '<span class="indicator-sim">✅</span>';
+            } else if (data.vaiMatricular === "NAO") {
+                matriculaIcon = '<span class="indicator-nao">❌</span>';
+            } else if (data.vaiMatricular === "TALVEZ") {
+                matriculaIcon = '<span class="indicator-talvez">🟠</span>';
+            } else {
+                matriculaIcon = '✅';
+            }
+            return `${matriculaIcon} ${contatosResumo}`;
+        } else if (data && data.contatoRealizado === "NAO") {
+            return `⏳ Sem contato efetivo`;
+        }
+        return "📞 Pendente";
+    }
+
+    function renderTable() {
+        if(!filteredData.length) {
+            tableBody.innerHTML = '<tr><td colspan="8">Nenhum registro encontrado</td></tr>';
+            return;
+        }
+        // findIndex por linha era O(n²) na base inteira a cada render. Map é O(n).
+        const idxMap = new Map();
+        masterData.forEach((r, i) => idxMap.set(r, i));
+
+        tableBody.innerHTML = filteredData.map(row => {
+            const originalIdx = idxMap.get(row);
+            const nome = txt(row[colMap.nome]) || "Anônimo";
+            const email = txt(row[colMap.email]) || "-";
+            const celular = txt(row[colMap.celular]) || "-";
+            const curso = txt(row[colMap.curso]) || "-";
+            const classif = txt(row[colMap.classificacao]) || "-";
+            const statusPg = txt(row[colMap.statusPag]) || "-";
+            const cidade = txt(row[colMap.cidade]) || "-";
+            const estado = txt(row[colMap.estado]);
+            const summary = getLastContactSummary(row, originalIdx);
+            const leadKey = getLeadKey(row, originalIdx);
+            return `
+                <tr>
+                    <td class="clickable-name" data-key="${escapeHtml(leadKey)}">${escapeHtml(nome)}</td>
+                    <td>${escapeHtml(email)}</td>
+                    <td>${escapeHtml(celular)}</td>
+                    <td>${escapeHtml(curso)}</td>
+                    <td><span class="contact-badge">${escapeHtml(classif)}</span></td>
+                    <td>${escapeHtml(statusPg)}</td>
+                    <td>${escapeHtml(cidade)}/${escapeHtml(estado)}</td>
+                    <td>${summary}</td>
+                </tr>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.clickable-name').forEach(el => {
+            el.addEventListener('click', function() {
+                openModalForKey(this.getAttribute('data-key'));
+            });
+        });
+    }
+
+    // FIX 3: o modal passa a trabalhar por chave, não por índice.
+    function openModalForKey(key) {
+        const masterIndex = findRowIndexByKey(key);
+        if (masterIndex < 0) {
+            showNotification("Lead não encontrado na base atual. Atualize a página.", true);
+            return;
+        }
+        const row = masterData[masterIndex];
+        const nome = txt(row[colMap.nome]) || "Lead";
+        modalStudentNameSpan.innerText = `📌 ${nome}`;
+        modalStudentKey.value = key;
+        modalClassificacaoInput.value = txt(row[colMap.classificacao]);
+        const saved = acompanhamentos[key] || {};
+
+        document.querySelectorAll('input[name="contatoRealizado"]').forEach(r => r.checked = (r.value === (saved.contatoRealizado || '')));
+        document.querySelectorAll('input[name="houveRetorno"]').forEach(r => r.checked = (r.value === (saved.houveRetorno || '')));
+        const contatosSalvos = getContatosRegistrados(saved);
+        const responsaveisSalvos = contatosSalvos.length
+            ? contatosSalvos.map(c => c.responsavel)
+            : (Array.isArray(saved.responsaveis) ? saved.responsaveis : [saved.responsavel || "", saved.responsavel2 || "", saved.responsavel3 || ""]);
+        const datasSalvas = contatosSalvos.length
+            ? contatosSalvos.map(c => c.dataHora || "")
+            : [saved.dataHoraContato1 || saved.dataHoraContato || "", saved.dataHoraContato2 || "", saved.dataHoraContato3 || ""];
+
+        document.getElementById("responsavelContato1").value = responsaveisSalvos[0] || "";
+        document.getElementById("responsavelContato2").value = responsaveisSalvos[1] || "";
+        document.getElementById("responsavelContato3").value = responsaveisSalvos[2] || "";
+        document.getElementById("dataHoraContato1").value = datasSalvas[0] || getLocalDateTimeValue();
+        document.getElementById("dataHoraContato2").value = datasSalvas[1] || "";
+        document.getElementById("dataHoraContato3").value = datasSalvas[2] || "";
+        document.querySelectorAll('input[name="vaiMatricular"]').forEach(r => r.checked = (r.value === (saved.vaiMatricular || '')));
+        document.getElementById("dataMatricula").value = saved.dataMatricula || "";
+        document.getElementById("motivoNao").value = saved.motivoNao || "";
+        document.getElementById("nomeContato").value = saved.nomeContato || "";
+        document.getElementById("observacaoTalvez").value = saved.observacaoTalvez || "";
+
+        atualizarCamposCondicionais();
+        modal.classList.add("active");
+    }
+
+    function getVaiMatricularSelecionado() {
+        const selected = document.querySelector('input[name="vaiMatricular"]:checked');
+        return selected ? selected.value : "";
+    }
+
+    function atualizarCamposCondicionais() {
+        const valor = getVaiMatricularSelecionado();
+        document.getElementById("dataMatriculaField").style.display = (valor === "SIM") ? "block" : "none";
+        document.getElementById("motivoNaoField").style.display = (valor === "NAO") ? "block" : "none";
+        document.getElementById("nomeContatoField").style.display = (valor === "NAO") ? "block" : "none";
+        document.getElementById("observacaoTalvezField").style.display = (valor === "TALVEZ") ? "block" : "none";
+    }
+
+    function saveContact() {
+        saveContactBtn.disabled = true;
+        saveContactBtn.innerText = "⏳ Salvando...";
+        const restoreBtn = () => {
+            saveContactBtn.disabled = false;
+            saveContactBtn.innerText = "💾 Salvar acompanhamento";
+        };
+
+        try {
+            // FIX 3: resolve pela chave. Se o lead sumiu da base (outro usuário
+            // limpou/reimportou), avisa em vez de gravar no registro errado.
+            const key = modalStudentKey.value;
+            const masterIdx = findRowIndexByKey(key);
+            if (masterIdx < 0) {
+                showNotification("Este lead não está mais na base desta unidade. Feche e reabra o registro.", true);
+                restoreBtn();
+                return;
+            }
+
+            const contatoRealizado = document.querySelector('input[name="contatoRealizado"]:checked')?.value || "";
+            const houveRetorno = document.querySelector('input[name="houveRetorno"]:checked')?.value || "";
+            const responsavel1 = document.getElementById("responsavelContato1").value;
+            const responsavel2 = document.getElementById("responsavelContato2").value;
+            const responsavel3 = document.getElementById("responsavelContato3").value;
+            const dataHoraContato1 = document.getElementById("dataHoraContato1").value || (responsavel1 ? getLocalDateTimeValue() : "");
+            const dataHoraContato2 = document.getElementById("dataHoraContato2").value || (responsavel2 ? getLocalDateTimeValue() : "");
+            const dataHoraContato3 = document.getElementById("dataHoraContato3").value || (responsavel3 ? getLocalDateTimeValue() : "");
+            const contatos = [
+                { responsavel: responsavel1, dataHora: dataHoraContato1 },
+                { responsavel: responsavel2, dataHora: dataHoraContato2 },
+                { responsavel: responsavel3, dataHora: dataHoraContato3 }
+            ].filter(c => c.responsavel);
+            const responsaveis = contatos.map(c => c.responsavel);
+            const responsavel = responsaveis.length ? responsaveis.join(" | ") : "";
+            const dataHoraContato = contatos.length ? contatos[0].dataHora : "";
+            const vaiMatricular = document.querySelector('input[name="vaiMatricular"]:checked')?.value || "";
+            const dataMatricula = document.getElementById("dataMatricula").value;
+            const motivoNao = document.getElementById("motivoNao").value;
+            const nomeContato = document.getElementById("nomeContato").value;
+            const observacaoTalvez = document.getElementById("observacaoTalvez").value;
+            const novaClassificacao = modalClassificacaoInput.value.trim();
+
+            const payload = {
+                contatoRealizado,
+                houveRetorno,
+                responsavel,
+                responsavel1,
+                responsavel2,
+                responsavel3,
+                responsaveis,
+                contatos,
+                dataHoraContato,
+                dataHoraContato1,
+                dataHoraContato2,
+                dataHoraContato3,
+                vaiMatricular,
+                dataMatricula: vaiMatricular === "SIM" ? dataMatricula : "",
+                motivoNao: vaiMatricular === "NAO" ? motivoNao : "",
+                nomeContato: vaiMatricular === "NAO" ? nomeContato : "",
+                observacaoTalvez: vaiMatricular === "TALVEZ" ? observacaoTalvez : "",
+                dataRegistro: new Date().toLocaleString()
+            };
+
+            // Estado local otimista (o listener confirma logo em seguida).
+            acompanhamentos[key] = payload;
+            if (novaClassificacao) {
+                masterData[masterIdx][colMap.classificacao] = novaClassificacao;
+            }
+
+            /* FIX 4: update multi-path. Grava só o acompanhamento deste lead e,
+               se mudou, a classificação desta linha. Antes reescrevia o nó
+               inteiro da unidade e apagava o trabalho simultâneo dos outros. */
+            const updates = {};
+            updates["acompanhamentos/" + key] = cleanFirebaseValue(payload);
+            if (novaClassificacao) {
+                updates["masterData/" + masterIdx + "/" + sanitizeObjectKey(colMap.classificacao)] = novaClassificacao;
+            }
+            updates["atualizadoEm"] = new Date().toISOString();
+
+            realtimeDB.ref(unitPath(currentUnit)).update(updates)
+                .then(() => {
+                    updateFilterOptions();
+                    modal.classList.remove("active");
+                    applyFilters();
+                    showNotification("Acompanhamento e classificação salvos com sucesso!");
+                })
+                .catch(err => {
+                    console.error(err);
+                    showNotification("Erro ao salvar acompanhamento: " + err.message, true);
+                })
+                .finally(restoreBtn);
+        } catch (err) {
+            console.error(err);
+            showNotification("Erro inesperado ao salvar: " + err.message, true);
+            restoreBtn();
+        }
+    }
+
+    function renderCharts() {
+        if(!filteredData.length) { destroyCharts(); return; }
+        const classCount = {}; filteredData.forEach(r=>{ const c = txt(r[colMap.classificacao]) || "Indefinido"; classCount[c]=(classCount[c]||0)+1; });
+        if(charts.class) charts.class.destroy();
+        charts.class = new Chart(document.getElementById('chartClassificacao'), { type:'pie', data:{ labels:Object.keys(classCount), datasets:[{ data:Object.values(classCount), backgroundColor:['#2c7da0','#61a5c2','#89c2d9','#a9d6e5'] }] } });
+        const courseCount={}; filteredData.forEach(r=>{ const cr = txt(r[colMap.curso]) || "Outros"; courseCount[cr]=(courseCount[cr]||0)+1; });
+        const sorted=Object.entries(courseCount).sort((a,b)=>b[1]-a[1]).slice(0,6);
+        if(charts.curso) charts.curso.destroy();
+        charts.curso = new Chart(document.getElementById('chartCursosTop'), { type:'bar', data:{ labels:sorted.map(v=>v[0]), datasets:[{ label:'Inscrições', data:sorted.map(v=>v[1]), backgroundColor:'#3b8db0' }] } });
+        const pagCount={}; filteredData.forEach(r=>{ const p = txt(r[colMap.statusPag]) || "Pendente"; pagCount[p]=(pagCount[p]||0)+1; });
+        if(charts.pag) charts.pag.destroy();
+        charts.pag = new Chart(document.getElementById('chartPagamento'), { type:'doughnut', data:{ labels:Object.keys(pagCount), datasets:[{ data:Object.values(pagCount), backgroundColor:['#2c6e49','#d68c45'] }] } });
+    }
+
+    /* FIX 1: existingColMap é o colMap ANTIGO. As linhas já em masterData usam
+       os cabeçalhos da importação anterior; se a planilha nova trouxer nomes
+       diferentes ("Telefone" vs "Celular da Pessoa"), ler com o colMap novo
+       devolvia vazio pra tudo e nenhuma duplicata era detectada. */
+    function mergeNewLeads(newRows, existingColMap) {
+        if (!newRows.length) return 0;
+        const existingPhones = new Set();
+        masterData.forEach(row => {
+            const phone = phoneKey(row[existingColMap.celular]);
+            if (phone) existingPhones.add(phone);
+        });
+        let addedCount = 0;
+        for (const row of newRows) {
+            const phone = phoneKey(row[colMap.celular]);
+            if (phone && existingPhones.has(phone)) continue;
+            masterData.push(row);
+            if (phone) existingPhones.add(phone);
+            addedCount++;
+        }
+        return addedCount;
+    }
+
+    function processExcelWithMerge(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+                if(!json.length) { showNotification("A planilha está vazia!", true); return; }
+
+                const keys = Object.keys(json[0]);
+                const findKey = (names) => {
+                    for (const n of names) {
+                        const found = keys.find(k => k.toLowerCase().trim() === n.toLowerCase().trim());
+                        if (found) return found;
+                    }
+                    return names[0];
+                };
+                const newColMap = {
+                    nome: findKey(["Nome da Pessoa","Nome"]),
+                    email: findKey(["Email da Pessoa","Email","E-mail"]),
+                    celular: findKey(["Celular da Pessoa","Celular","Telefone"]),
+                    cidade: findKey(["Cidade do Endereço","Cidade"]),
+                    estado: findKey(["Estado","UF"]),
+                    curso: findKey(["Curso"]),
+                    classificacao: findKey(["Classificação"]),
+                    statusPag: findKey(["Transação Status","Status Pagamento"]),
+                    inscricaoAtiva: findKey(["Inscricao Ativa","Inscrição Ativa"])
+                };
+
+                const missing = Object.entries(newColMap)
+                    .filter(([, header]) => !keys.includes(header))
+                    .map(([campo]) => campo);
+
+                const oldColMap = colMap;
+                colMap = newColMap;
+
+                const added = mergeNewLeads(json, oldColMap);
+                if (missing.length) {
+                    showNotification(`⚠️ Colunas não encontradas na planilha: ${missing.join(", ")}. Esses campos ficarão vazios.`, true);
+                }
+                if(added === 0 && masterData.length > 0) {
+                    showNotification("Nenhum novo lead adicionado. Todos os telefones já existem na base.", false);
+                } else if(added > 0) {
+                    showNotification(`✅ ${added} novo(s) lead(s) adicionado(s) com sucesso! (baseado no telefone)`, false);
+                } else {
+                    showNotification("Erro: nenhum dado foi carregado. Verifique o formato da planilha.", true);
+                }
+
+                updateFilterOptions();
+                filterClass.value = ""; filterCurso.value = ""; filterStatus.value = ""; filterCidade.value = ""; filterAtiva.value = ""; searchText.value = "";
+                applyFilters();
+                if (masterData.length > 0) {
+                    emptyStateDiv.style.display = "none";
+                    dataContentDiv.style.display = "block";
+                } else {
+                    emptyStateDiv.style.display = "block";
+                    dataContentDiv.style.display = "none";
+                }
+                persistCurrentUnit()
+                    .then(() => showNotification("✅ Dados importados e salvos na nuvem com sucesso!"))
+                    .catch(err => {
+                        console.error(err);
+                        showNotification("❌ Erro ao salvar importação na nuvem: " + err.message, true);
+                    });
+            } catch(err) {
+                console.error(err);
+                showNotification("Erro ao processar o arquivo: " + err.message, true);
+            }
+        };
+        reader.onerror = () => showNotification("Erro na leitura do arquivo.", true);
+        reader.readAsArrayBuffer(file);
+    }
+
+    function exportWithFollowups() {
+        if(!filteredData.length) { showNotification("Sem dados para exportar.", true); return; }
+        const idxMap = new Map();
+        masterData.forEach((r, i) => idxMap.set(r, i));
+
+        const exportRows = filteredData.map(row => {
+            const idx = idxMap.get(row);
+            const key = getLeadKey(row, idx);
+            const a = acompanhamentos[key] || {};
+            const contatos = getContatosRegistrados(a);
+            const resp = n => (contatos[n] ? contatos[n].responsavel : "");
+            const dh = n => (contatos[n] && contatos[n].dataHora ? formatDateTimeBR(contatos[n].dataHora) : "");
+            return {
+                "Nome": txt(row[colMap.nome]),
+                "Email": txt(row[colMap.email]),
+                "Celular": txt(row[colMap.celular]),
+                "Curso": txt(row[colMap.curso]),
+                "Classificação": txt(row[colMap.classificacao]),
+                "Status Pagamento": txt(row[colMap.statusPag]),
+                "Cidade": txt(row[colMap.cidade]),
+                "Contato Realizado": a.contatoRealizado || "",
+                "Houve Retorno": a.houveRetorno || "",
+                "Responsável 1": resp(0),
+                "Data e Hora Contato 1": dh(0),
+                "Responsável 2": resp(1),
+                "Data e Hora Contato 2": dh(1),
+                "Responsável 3": resp(2),
+                "Data e Hora Contato 3": dh(2),
+                "Responsáveis Consolidados": getResponsaveisTexto(a),
+                "Vai Matricular": a.vaiMatricular || "",
+                "Data Prevista Matrícula": a.dataMatricula || "",
+                "Motivo Não Matrícula": a.motivoNao || "",
+                "Nome Contato": a.nomeContato || "",
+                "Observação Talvez": a.observacaoTalvez || "",
+                "Data Registro": a.dataRegistro || ""
+            };
+        });
+        const ws = XLSX.utils.json_to_sheet(exportRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Leads_Acompanhamento");
+        const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g, "-");
+        XLSX.writeFile(wb, `leads_${currentUnit.replace(/\s/g, "_")}_${stamp}.xlsx`);
+    }
+
+    function initUnitsBar() {
+        const grid = document.getElementById("unitsGrid");
+        grid.innerHTML = "";
+        const allowed = UNITS.filter(canAccessUnit);
+        if (!allowed.length) {
+            const aviso = document.createElement("div");
+            aviso.style.cssText = "color:#b33;font-weight:600;font-size:0.9rem;";
+            aviso.textContent = "Sua conta não tem nenhuma unidade liberada. Fale com o administrador.";
+            grid.appendChild(aviso);
+            crmContainer.style.display = "none";
+            return;
+        }
+        allowed.forEach(unit => {
+            const btn = document.createElement("button");
+            btn.className = "unit-btn";
+            btn.textContent = unit;
+            btn.setAttribute("data-unit", unit);
+            btn.addEventListener("click", () => loadUnitData(unit));
+            grid.appendChild(btn);
+        });
+        crmContainer.style.display = "none";
+        // Usuário com uma única unidade entra direto nela.
+        if (!isAdmin && allowed.length === 1) loadUnitData(allowed[0]);
+    }
+
+    // Event Listeners
+    document.getElementById("uploadBtn").addEventListener("click", () => {
+        if (!isAdmin) { showNotification("Apenas administradores podem importar planilhas.", true); return; }
+        document.getElementById("fileInput").click();
+    });
+    document.getElementById("uploadEmptyBtn").addEventListener("click", () => {
+        if (!isAdmin) { showNotification("Apenas administradores podem importar planilhas.", true); return; }
+        document.getElementById("fileInput").click();
+    });
+    document.getElementById("fileInput").addEventListener("change", (e) => {
+        if(e.target.files.length) processExcelWithMerge(e.target.files[0]);
+        e.target.value = '';
+    });
+    exportBtn.addEventListener("click", () => exportWithFollowups());
+    toggleChartBtn.addEventListener("click", () => {
+        if(chartPanel.style.display === "none" || !chartPanel.style.display){
+            chartPanel.style.display = "block";
+            toggleChartBtn.textContent = "📊 Ocultar Gráficos";
+            renderCharts();
+        } else {
+            closeChartPanel();
+        }
+    });
+    clearFiltersBtn.addEventListener("click", () => {
+        filterClass.value = ""; filterCurso.value = ""; filterStatus.value = "";
+        filterCidade.value = ""; filterAtiva.value = ""; searchText.value = "";
+        applyFilters();
+    });
+    clearDataBtn.addEventListener("click", clearCurrentUnitData);
+
+    [filterClass, filterCurso, filterStatus, filterCidade, filterAtiva].forEach(el => el.addEventListener("change", () => applyFilters()));
+    searchText.addEventListener("keyup", () => applyFilters());
+    closeModalBtn.addEventListener("click", () => modal.classList.remove("active"));
+    modal.addEventListener("click", (e) => { if(e.target === modal) modal.classList.remove("active"); });
+
+    document.querySelectorAll('input[name="vaiMatricular"]').forEach(r => r.addEventListener("change", atualizarCamposCondicionais));
+    [1, 2, 3].forEach(num => {
+        const responsavelEl = document.getElementById(`responsavelContato${num}`);
+        const dataHoraEl = document.getElementById(`dataHoraContato${num}`);
+        if (responsavelEl && dataHoraEl) {
+            responsavelEl.addEventListener("change", () => {
+                if (responsavelEl.value && !dataHoraEl.value) {
+                    dataHoraEl.value = getLocalDateTimeValue();
+                }
+                if (!responsavelEl.value) {
+                    dataHoraEl.value = "";
+                }
+            });
+        }
+    });
+
+    saveContactBtn.addEventListener("click", saveContact);
+
+    // ---------- AUTENTICAÇÃO ----------
+    const authOverlay = document.getElementById("authOverlay");
+    const authEmail = document.getElementById("authEmail");
+    const authPass = document.getElementById("authPass");
+    const authBtn = document.getElementById("authBtn");
+    const authErr = document.getElementById("authErr");
+    const authForgot = document.getElementById("authForgot");
+    const userBar = document.getElementById("userBar");
+    const userBarInfo = document.getElementById("userBarInfo");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    function authErrorMsg(err) {
+        const code = err && err.code ? err.code : "";
+        if (code.includes("invalid-credential") || code.includes("invalid-login-credentials") ||
+            code.includes("wrong-password") || code.includes("user-not-found") ||
+            code.includes("invalid-email")) return "E-mail ou senha inválidos.";
+        if (code.includes("too-many-requests")) return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+        if (code.includes("network-request-failed")) return "Falha de rede. Verifique a conexão.";
+        if (code.includes("user-disabled")) return "Conta desativada. Fale com o administrador.";
+        return "Não foi possível entrar: " + (err && err.message ? err.message : "erro desconhecido");
+    }
+
+    function doLogin() {
+        const email = authEmail.value.trim();
+        const pass = authPass.value;
+        if (!email || !pass) { authErr.textContent = "Informe e-mail e senha."; return; }
+        authBtn.disabled = true;
+        authErr.textContent = "";
+        authFB.signInWithEmailAndPassword(email, pass)
+            .catch(err => { authErr.textContent = authErrorMsg(err); })
+            .finally(() => { authBtn.disabled = false; authPass.value = ""; });
+    }
+    authBtn.addEventListener("click", doLogin);
+    [authEmail, authPass].forEach(el => el.addEventListener("keypress", e => {
+        if (e.key === "Enter") { e.preventDefault(); doLogin(); }
+    }));
+    authForgot.addEventListener("click", () => {
+        const email = authEmail.value.trim();
+        if (!email) { authErr.textContent = "Digite seu e-mail acima e clique de novo."; return; }
+        // Mesma mensagem em sucesso e erro: não revela quais e-mails existem.
+        const done = () => { authErr.textContent = "Se o e-mail estiver cadastrado, o link de redefinição foi enviado."; };
+        authFB.sendPasswordResetEmail(email).then(done).catch(done);
+    });
+
+    function applyRoleUI() {
+        [document.getElementById("uploadBtn"), document.getElementById("uploadEmptyBtn"), clearDataBtn]
+            .forEach(el => { if (el) el.style.display = isAdmin ? "" : "none"; });
+        userBarInfo.textContent = "👤 " + (userProfile.email || "") + (isAdmin ? " · Administrador" : "");
+        userBar.style.display = "flex";
+    }
+
+    function resetAppState() {
+        if (currentUnitRef) { currentUnitRef.off(); currentUnitRef = null; }
+        currentUnit = null;
+        masterData = []; filteredData = []; acompanhamentos = {}; unitData = {};
+        colMap = Object.assign({}, DEFAULT_COLMAP);
+        destroyCharts();
+        crmContainer.style.display = "none";
+        userBar.style.display = "none";
+        document.getElementById("unitsGrid").innerHTML = "";
+    }
+
+    logoutBtn.addEventListener("click", () => authFB.signOut());
+
+    // Falha explícita: sem a Chave de API da Web o login não tem como funcionar.
+    if (firebaseConfig.apiKey.includes("COLE_AQUI")) {
+        authErr.textContent = "Configuração pendente: cole a Chave de API da Web em firebaseConfig.apiKey neste arquivo.";
+        authBtn.disabled = true;
+    }
+
+    authFB.onAuthStateChanged(user => {
+        if (!user) {
+            resetAppState();
+            userProfile = null; isAdmin = false;
+            authOverlay.style.display = "flex";
+            return;
+        }
+        // O perfil de acesso mora em /users/{uid}; sem ele (ou inativo), não entra.
+        realtimeDB.ref("users/" + user.uid).once("value")
+            .then(snap => {
+                const p = snap.val();
+                if (!p || p.active !== true) {
+                    authErr.textContent = "Sua conta não tem perfil de acesso liberado. Fale com o administrador.";
+                    return authFB.signOut();
+                }
+                userProfile = p;
+                isAdmin = p.role === "admin";
+                authOverlay.style.display = "none";
+                authErr.textContent = "";
+                applyRoleUI();
+                initUnitsBar();
+            })
+            .catch(err => {
+                console.error(err);
+                authErr.textContent = "Não foi possível carregar seu perfil (" + err.message + "). As Security Rules foram publicadas?";
+                authFB.signOut();
+            });
+    });
+</script>
+</body>
+</html>

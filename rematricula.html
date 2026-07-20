@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- CSP: restringe origens de script e destinos de rede (mesmo num eventual XSS,
+     dados só saem para os endpoints do Firebase). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Central Inteligente de Rematrícula</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<style>
+:root{--azul:#17365d;--azul2:#1f4e78;--verde:#1f9d55;--amarelo:#f4b942;--vermelho:#d64545;--cinza:#eef3f8;--texto:#263445;--borda:#d8e1eb}
+*{box-sizing:border-box}body{margin:0;background:var(--cinza);font-family:Segoe UI,Arial,sans-serif;color:var(--texto)}
+.container{max-width:1550px;margin:20px auto;background:#fff;border-radius:16px;box-shadow:0 12px 35px rgba(20,45,80,.12);padding:24px}
+h1{margin:0;color:var(--azul);font-size:28px}.sub{margin:4px 0 20px;color:#64748b}.upload{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:18px;border:2px dashed #8fb1d1;border-radius:12px;background:#f7fbff}.btn{border:0;border-radius:9px;padding:11px 16px;font-weight:700;cursor:pointer;color:#fff;background:var(--azul2)}.btn.green{background:var(--verde)}.btn.red{background:var(--vermelho)}.btn.gray{background:#64748b}.btn:disabled{opacity:.5;cursor:not-allowed}
+#file{display:none}.status{font-weight:600;color:#475569}.filters{display:grid;grid-template-columns:repeat(8,minmax(145px,1fr));gap:12px;margin:18px 0;padding:16px;background:#f8fafc;border:1px solid var(--borda);border-radius:12px}.fg label{font-size:11px;text-transform:uppercase;font-weight:800;color:#526375;display:block;margin-bottom:5px}.fg select,.fg input{width:100%;padding:9px;border:1px solid #b7c4d3;border-radius:8px;background:#fff}
+.kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin:16px 0}.kpi{border:1px solid var(--borda);border-radius:12px;padding:15px;background:#fff;box-shadow:0 3px 10px rgba(20,45,80,.05)}.kpi span{font-size:12px;color:#667085}.kpi b{display:block;font-size:26px;color:var(--azul);margin-top:6px}.kpi small{color:#667085}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}.card{border:1px solid var(--borda);border-radius:12px;background:#fff;padding:16px}.card h3{margin:0 0 12px;color:var(--azul)}canvas{max-height:340px}
+.tablewrap{overflow:auto;border:1px solid var(--borda);border-radius:12px;margin-top:16px}table{border-collapse:collapse;width:100%;min-width:1350px;font-size:12px}th{position:sticky;top:0;background:var(--azul);color:#fff;padding:10px;text-align:left;z-index:1}td{padding:8px;border-bottom:1px solid #e7edf4;vertical-align:top}tr:hover{background:#f7fbff}.badge{display:inline-block;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:800}.alta{background:#fee2e2;color:#991b1b}.media{background:#fef3c7;color:#92400e}.baixa{background:#dcfce7;color:#166534}.ok{background:#dcfce7;color:#166534}.pend{background:#fee2e2;color:#991b1b}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}.counter{margin-left:auto;font-weight:700;color:#475569}.obs{width:220px;min-height:38px;border:1px solid #cbd5e1;border-radius:7px;padding:6px}.selectSmall{padding:6px;border:1px solid #cbd5e1;border-radius:7px}.summarybox{border:1px solid var(--borda);border-radius:12px;overflow:auto;margin:18px 0}.summarybox h3{margin:0;padding:14px 16px;background:var(--azul);color:#fff}.summarytable{width:100%;min-width:720px;border-collapse:collapse;font-size:13px}.summarytable th{position:static;background:#214a78;color:#fff;text-align:center}.summarytable td{padding:8px 10px;border-bottom:1px solid #d8e1eb}.summarytable .grupo{font-weight:800}.summarytable .nivel2{padding-left:28px}.summarytable .nivel3{padding-left:52px}.summarytable .matSim{background:#f4b183}.summarytable .matNao{background:#a9d18e}.summarytable .mensSim{background:#f8cbad}.summarytable .mensNao{background:#bdd7ee}.summarytable .docNao{background:#e7e6e6}.summarytable .docSim{background:#fff2cc}.note{background:#fff8e6;border-left:5px solid var(--amarelo);padding:12px;border-radius:8px;margin-top:14px;font-size:13px}
+.warn{background:#fff1f1;border-left:5px solid var(--vermelho);padding:12px;border-radius:8px;margin-top:12px;font-size:13px;display:none}
+.trunc{font-size:12px;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:7px;display:none}
+#authOverlay{position:fixed;inset:0;z-index:5000;background:var(--cinza);display:flex;align-items:center;justify-content:center;padding:20px}
+.authbox{background:#fff;border:1px solid var(--borda);border-radius:16px;box-shadow:0 12px 35px rgba(20,45,80,.12);padding:32px 28px;width:100%;max-width:380px;text-align:center}
+.authbox h2{margin:6px 0 2px;color:var(--azul);font-size:22px}
+.authbox .asub{color:#64748b;font-size:13px;margin-bottom:16px}
+.authbox label{display:block;text-align:left;font-size:11px;text-transform:uppercase;font-weight:800;color:#526375;margin:10px 0 5px}
+.authbox input{width:100%;padding:11px;border:1px solid #b7c4d3;border-radius:8px;font-size:16px}
+.authbox .btn{width:100%;margin-top:16px}
+.aerr{color:var(--vermelho);font-size:12px;font-weight:700;min-height:16px;margin-top:10px}
+.aforgot{background:none;border:0;color:var(--azul2);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px}
+#userBar{display:none;position:fixed;top:10px;right:12px;z-index:4000;background:var(--azul);color:#fff;border-radius:40px;padding:6px 6px 6px 14px;font-size:12px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.2);align-items:center;gap:10px}
+#userBar button{border:0;border-radius:30px;padding:5px 12px;cursor:pointer;background:var(--vermelho);color:#fff;font-weight:800;font-size:11px}
+@media(max-width:1100px){.filters{grid-template-columns:repeat(3,1fr)}.kpis{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}@media(max-width:650px){.filters,.kpis{grid-template-columns:1fr}.container{margin:0;border-radius:0}}
+</style>
+</head>
+<body>
+<!-- Login: nada é carregado (nem da nuvem) antes da autenticação. A proteção
+     real dos dados são as Security Rules do Realtime Database. -->
+<div id="authOverlay"><div class="authbox">
+<div style="font-size:34px">🔐</div><h2>Central de Rematrícula</h2><div class="asub">Acesso restrito · entre com sua conta</div>
+<label for="authEmail">E-mail</label><input type="email" id="authEmail" autocomplete="username" placeholder="seu@email.com">
+<label for="authPass">Senha</label><input type="password" id="authPass" autocomplete="current-password" placeholder="••••••••">
+<button class="btn" id="authBtn">Entrar</button>
+<div class="aerr" id="authErr"></div>
+<button type="button" class="aforgot" id="authForgot">Esqueci minha senha</button>
+</div></div>
+<div id="userBar"><span id="userBarInfo"></span><button id="logoutBtn">Sair</button></div>
+<div class="container" id="appRoot" style="display:none">
+<h1>Central Inteligente de Rematrícula</h1><div class="sub">Gestão por curso, prioridade de contato, pendências acadêmicas e financeiras</div>
+<div class="upload"><label class="btn" for="file" id="importLabel">📂 Anexar Excel/XLSB</label><input id="file" type="file" accept=".xlsx,.xls,.xlsb,.csv"><span id="status" class="status">Nenhum arquivo carregado</span><button id="reset" class="btn gray">Limpar dados</button></div>
+<div class="note">O sistema procura automaticamente a aba <b>Base</b> e identifica a linha de cabeçalho pelos campos ALUNO, RA e CURSO. Ao anexar uma nova versão, ele <b>atualiza somente os dados que mudaram</b>, inclui novos alunos e mantém os demais registros e os contatos já lançados. Base e contatos ficam <b>na nuvem</b>, compartilhados por toda a equipe em tempo real.</div>
+<div class="warn" id="warnPend"></div>
+<div class="filters" id="filters">
+<div class="fg"><label>Curso</label><select id="fCurso"><option value="">Todos</option></select></div>
+<div class="fg"><label>Período</label><select id="fPeriodo"><option value="">Todos</option></select></div>
+<div class="fg"><label>Nível</label><select id="fNivel"><option value="">Todos</option></select></div>
+<div class="fg"><label>Pendência matrícula</label><select id="fMat"><option value="">Todas</option></select></div>
+<div class="fg"><label>Pendência mensalidade</label><select id="fMens"><option value="">Todas</option></select></div>
+<div class="fg"><label>Pendência documentação</label><select id="fDoc"><option value="">Todas</option><option value="Não">Não</option><option value="Sim">Sim</option></select></div>
+<div class="fg"><label>Cenário financeiro</label><select id="fCenario"><option value="">Todos</option><option value="MAT_SIM_MENS_SIM">Com pend. matrícula + mensalidade</option><option value="MAT_SIM_MENS_NAO">Com pend. matrícula, sem mensalidade</option><option value="MAT_NAO_MENS_SIM">Sem pend. matrícula, com mensalidade</option><option value="MAT_NAO_MENS_NAO">Sem pendência matrícula e mensalidade</option></select></div>
+<div class="fg"><label>Prioridade</label><select id="fPri"><option value="">Todas</option><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
+<div class="fg"><label>Buscar aluno/RA</label><input id="fBusca" placeholder="Digite nome ou RA"></div>
+</div>
+<div class="kpis" id="kpis">
+<div class="kpi"><span>Total de alunos</span><b id="kTotal">0</b><small>base filtrada</small></div>
+<div class="kpi"><span>Prontos para ação</span><b id="kProntos">0</b><small>sem pendência financeira</small></div>
+<div class="kpi"><span>Pendência matrícula</span><b id="kMat">0</b><small>necessitam negociação</small></div>
+<div class="kpi"><span>Pendência mensalidade</span><b id="kMens">0</b><small>risco financeiro</small></div>
+<div class="kpi"><span>Pendência documental</span><b id="kDoc">0</b><small>documentação pendente</small></div>
+<div class="kpi"><span>AV1 + AV2 realizadas</span><b id="kAv">0</b><small>situação acadêmica</small></div>
+<div class="kpi"><span>Prioridade alta</span><b id="kAlta">0</b><small>contato imediato</small></div>
+</div>
+<div class="summarybox"><h3>Situação da documentação e pendências financeiras</h3><table class="summarytable"><thead><tr><th>Situação</th><th>Quantidade</th><th>% do total filtrado</th></tr></thead><tbody id="summaryBody"><tr><td colspan="3" style="text-align:center">Anexe o arquivo para começar.</td></tr></tbody></table></div>
+<div class="grid"><div class="card"><h3>Ranking de alunos por curso</h3><canvas id="chartCursos"></canvas></div><div class="card"><h3>Distribuição das prioridades</h3><canvas id="chartPrioridade"></canvas></div></div>
+<div class="actions"><button class="btn green" id="export">⬇ Exportar lista filtrada</button><button class="btn" id="clearFilters">Limpar filtros</button><span class="trunc" id="trunc"></span><span class="counter" id="counter">0 registros</span></div>
+<div class="tablewrap"><table><thead><tr><th>Prioridade</th><th>Aluno</th><th>RA</th><th>Curso</th><th>Período</th><th>Telefone</th><th>E-mail</th><th>AVs</th><th>Pend. matrícula</th><th>Pend. mensalidade</th><th>Pend. documentação</th><th>FIES/PROUNI</th><th>Resultado contato</th><th>Responsável</th><th>Observação</th></tr></thead><tbody id="tbody"><tr><td colspan="15" style="text-align:center;padding:30px">Anexe o arquivo para começar.</td></tr></tbody></table></div>
+</div>
+<script>
+Chart.register(ChartDataLabels);
+const $=id=>document.getElementById(id);let data=[],filtered=[],chartCursos,chartPrioridade;
+
+/* ---------- FIREBASE (mesmo projeto do LeadVision: projetoantonio1-cae75) ----------
+   O apiKey não é segredo — só identifica o projeto. Quem protege os dados são
+   as Security Rules publicadas no Realtime Database (database.rules.json):
+   leitura/escrita exigem usuário autenticado com perfil ativo em /users/{uid};
+   escrever a base (/rematricula/base) exige role admin.
+   Chave de API da Web: Console Firebase > Configurações do projeto > Geral. */
+const firebaseConfig={
+  apiKey:"COLE_AQUI_A_CHAVE_DE_API_WEB",
+  authDomain:"projetoantonio1-cae75.firebaseapp.com",
+  databaseURL:"https://projetoantonio1-cae75-default-rtdb.firebaseio.com",
+  projectId:"projetoantonio1-cae75"
+};
+firebase.initializeApp(firebaseConfig);
+const authFB=firebase.auth(),db=firebase.database();
+let userProfile=null,isAdmin=false,tracking={},baseRef=null,trackRef=null,cloudPronto=false;
+
+const MAX_LINHAS=2000;
+const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+const dataKey=r=>norm(r.ra)||[norm(r.aluno),norm(r.curso),norm(r.periodo)].join('||');
+
+/* FIX 1 — Number("7,5") é NaN.
+   sheet_to_json roda com raw:false, então toda célula numérica volta como
+   string JÁ FORMATADA. Em planilha pt-BR a nota vem "7,5" e Number("7,5")
+   dá NaN -> avOk() sempre false -> a KPI "AV1 + AV2 realizadas" e a coluna
+   Prioridade ficavam erradas em silêncio. num() entende os dois formatos. */
+function num(v){
+  if(typeof v==='number') return v;
+  const s=String(v??'').trim();
+  if(!s) return NaN;
+  const temPonto=s.includes('.'), temVirgula=s.includes(',');
+  let limpo=s;
+  if(temPonto&&temVirgula){
+    // o separador decimal é o que aparece POR ÚLTIMO: "1.234,56" vs "1,234.56"
+    limpo = s.lastIndexOf(',')>s.lastIndexOf('.')
+      ? s.replace(/\./g,'').replace(',','.')
+      : s.replace(/,/g,'');
+  } else if(temVirgula){
+    limpo = s.replace(',','.');           // "7,5" -> "7.5"
+  }
+  limpo = limpo.replace(/[^0-9.\-]/g,'');
+  const n = Number(limpo);
+  return limpo===''||Number.isNaN(n) ? NaN : n;
+}
+
+/* FIX 3 — yesPend() só reconhecia "com pendencia", "1" e "sim".
+   "PENDENTE", "S", "EM ABERTO", "INADIMPLENTE" caíam todos em false, o que
+   zerava a KPI de pendência documental quando STSDOCEDU usa outro vocabulário.
+   Os NEGATIVOS são testados primeiro, senão "SEM PENDENCIA" casaria com
+   /PENDENCIA/ e inverteria o resultado. Valor não reconhecido continua sendo
+   tratado como "sem pendência", mas agora é REPORTADO em vez de silenciado. */
+const RE_PEND_NAO=/^(SEM\b|NAO\b|N$|0$|OK$|QUITAD|ADIMPLENTE|REGULAR$|NADA\b|ISENT)/;
+const RE_PEND_SIM=/PENDENCIA|PENDENTE|INADIMPL|EM ABERTO|ATRASO|DEBITO|DEVEDOR|^1$|^SIM$|^S$/;
+function yesPend(v){
+  const s=norm(v);
+  if(!s) return false;
+  if(RE_PEND_NAO.test(s)) return false;
+  return RE_PEND_SIM.test(s);
+}
+function auditPend(rows){
+  const desconhecidos=new Set();
+  const check=v=>{const s=norm(v);if(!s)return;if(RE_PEND_NAO.test(s)||RE_PEND_SIM.test(s))return;desconhecidos.add(String(v).trim())};
+  rows.forEach(r=>{check(r.pendMat);check(r.pendMens);check(r.docRaw)});
+  return [...desconhecidos];
+}
+
+function avOk(r){
+  const s=norm(r.avResumo);
+  if(s.includes('AV1 E AV2 REALIZADAS')) return true;
+  const a1=num(r.av1), a2=num(r.av2);
+  return a1>0 && a2>0;
+}
+function priority(r){const mat=yesPend(r.pendMat),mens=yesPend(r.pendMens),av=avOk(r);if(!mat&&!mens&&av)return'Alta';if((!mat&&!mens)||av)return'Média';return'Baixa'}
+
+/* FIX 7 — 'mantidos' era calculado DEPOIS do loop, quando o map já continha
+   todo o incoming; a conta virava sempre max(0, current.length-incoming.length).
+   Agora é medido antes e de fato aparece no status. */
+function mergeImportedData(current,incoming){
+  const map=new Map(current.map(r=>[dataKey(r),r]));
+  const chavesIncoming=new Set(incoming.map(dataKey));
+  const mantidos=current.filter(r=>!chavesIncoming.has(dataKey(r))).length;
+  let novos=0,atualizados=0,inalterados=0;
+  for(const novo of incoming){
+    const k=dataKey(novo);
+    const antigo=map.get(k);
+    if(!antigo){map.set(k,novo);novos++;continue}
+    const merged={...antigo};
+    let mudou=false;
+    for(const [campo,valor] of Object.entries(novo)){
+      if(campo==='prioridade') continue;
+      const novoValor=valor??'';
+      if(String(merged[campo]??'')!==String(novoValor)){merged[campo]=novoValor;mudou=true}
+    }
+    merged.prioridade=priority(merged);
+    map.set(k,merged);
+    mudou?atualizados++:inalterados++;
+  }
+  return {dados:[...map.values()],novos,atualizados,inalterados,mantidos};
+}
+
+const val=(row,names)=>{for(const n of names){const k=Object.keys(row).find(x=>norm(x)===norm(n));if(k!==undefined)return row[k]}return''};
+function detectHeader(raw){for(let i=0;i<Math.min(raw.length,30);i++){const r=(raw[i]||[]).map(norm);if(r.includes('ALUNO')&&r.includes('CURSO')&&(r.includes('RA')||r.includes('RA_')))return i}return 0}
+
+/* O acompanhamento agora mora na nuvem (/rematricula/tracking), compartilhado
+   por toda a equipe e protegido pelas Security Rules (só usuário autenticado e
+   ativo escreve). A chave é dataKey() saneada para caminho do RTDB (que não
+   aceita . # $ / [ ]); o fallback para o RA cru continua, para compatibilidade
+   com os contatos antigos migrados do localStorage. */
+const fbKey=s=>{const k=String(s??'').replace(/[.#$\/\[\]\u0000-\u001F\u007F]/g,'_').slice(0,200);return k||'_'};
+function loadTrack(key,legacyRa){
+  const atual=tracking[key];
+  if(atual&&Object.keys(atual).length) return atual;
+  const cru=fbKey(String(legacyRa??'').trim());
+  if(cru&&cru!==key){
+    const antigo=tracking[cru];
+    if(antigo&&Object.keys(antigo).length) return antigo;
+  }
+  return {};
+}
+function saveTrack(key,campo,valor){
+  tracking[key]=tracking[key]||{};
+  tracking[key][campo]=valor;
+  db.ref('rematricula/tracking/'+key).update({
+    [campo]:String(valor??''),
+    atualizadoPor:(authFB.currentUser&&authFB.currentUser.email)||'',
+    atualizadoEm:new Date().toISOString()
+  }).catch(err=>{console.error(err);alert('Erro ao salvar o contato na nuvem: '+err.message)});
+}
+function limparLinha(r){const o={};for(const [k,v] of Object.entries(r))o[k]=v==null?'':v;return o}
+function salvarBaseNuvem(){
+  return db.ref('rematricula/base').set({
+    rows:data.map(limparLinha),
+    atualizadoEm:new Date().toISOString(),
+    atualizadoPor:(authFB.currentUser&&authFB.currentUser.email)||''
+  }).then(()=>{$('status').textContent+=' | ☁️ salvo na nuvem'})
+    .catch(err=>{console.error(err);alert('Erro ao salvar a base na nuvem: '+err.message)});
+}
+
+function parseWorkbook(wb){
+  let sn=wb.SheetNames.find(s=>norm(s)==='BASE');
+  if(!sn){sn=wb.SheetNames.sort((a,b)=>(wb.Sheets[b]['!ref']||'').length-(wb.Sheets[a]['!ref']||'').length)[0]}
+  const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:false});
+  if(!raw.length) throw new Error('A aba "'+sn+'" está vazia.');
+  const h=detectHeader(raw);
+  const headers=(raw[h]||[]).map((x,i)=>String(x||'COL_'+i));
+  const rows=raw.slice(h+1).filter(r=>r.some(x=>String(x).trim()!=='')).map(arr=>Object.fromEntries(headers.map((k,i)=>[k,arr[i]??''])));
+  return rows.map(r=>{
+    const obj={
+      aluno:val(r,['ALUNO']),
+      ra:val(r,['RA','RA_']),
+      curso:val(r,['CURSO']),
+      /* FIX 9 — o fallback era ['PERIODO','Total do curso','Debito']. Sem uma
+         coluna PERÍODO, 'Debito' casa com "Débito" (norm remove o acento) e
+         jogava valor de dívida dentro do campo Período — que ainda alimenta o
+         filtro e o dataKey de quem não tem RA. */
+      periodo:val(r,['PERIODO','PERÍODO']),
+      nivel:val(r,['NÍVEL','NIVEL']),
+      email:val(r,['EMAIL']),
+      tel1:val(r,['TELEFONE1']),
+      tel2:val(r,['TELEFONE2']),
+      pendMat:val(r,['PENDÊNCIA FINANCEIRA MATRÍCULA','PENDENCIA FINANCEIRA MATRICULA']),
+      pendMens:val(r,['PENDÊNCIA FINANCEIRA EDUCACIONAL','PENDENCIA FINANCEIRA EDUCACIONAL']),
+      avResumo:val(r,['AV1 + AV2']),
+      av1:val(r,['AV1']),
+      av2:val(r,['AV2']),
+      avfinal:val(r,['AVFINAL']),
+      fies:val(r,['FIES']),
+      prouni:val(r,['PROUNI']),
+      campus:val(r,['CAMPUS']),
+      tipo:val(r,['TIPOCURSO']),
+      docRaw:val(r,['STSDOCEDU','PENDÊNCIA DE DOCUMENTAÇÃO','PENDENCIA DE DOCUMENTACAO'])
+    };
+    obj.docPend=yesPend(obj.docRaw)?'Sim':'Não';
+    obj.prioridade=priority(obj);
+    return obj;
+  }).filter(r=>r.aluno||r.ra);
+}
+
+// fillSelect agora preserva a opção escolhida se ela ainda existir na base nova.
+function fillSelect(id,values,vazio){
+  const el=$(id), anterior=el.value;
+  const opts=[...new Set(values.filter(Boolean).map(String))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  el.innerHTML=`<option value="">${vazio}</option>`;
+  opts.forEach(v=>el.add(new Option(v,v)));
+  if(anterior&&opts.includes(anterior)) el.value=anterior;
+}
+function setFilters(){fillSelect('fCurso',data.map(x=>x.curso),'Todos');fillSelect('fPeriodo',data.map(x=>x.periodo),'Todos');fillSelect('fNivel',data.map(x=>x.nivel),'Todos');fillSelect('fMat',data.map(x=>x.pendMat),'Todas');fillSelect('fMens',data.map(x=>x.pendMens),'Todas')}
+
+function apply(){const busca=norm($('fBusca').value),cen=$('fCenario').value;filtered=data.filter(r=>{const mat=yesPend(r.pendMat),mens=yesPend(r.pendMens);const okCenario=!cen||(cen==='MAT_SIM_MENS_SIM'&&mat&&mens)||(cen==='MAT_SIM_MENS_NAO'&&mat&&!mens)||(cen==='MAT_NAO_MENS_SIM'&&!mat&&mens)||(cen==='MAT_NAO_MENS_NAO'&&!mat&&!mens);return (!$('fCurso').value||r.curso===$('fCurso').value)&&(!$('fPeriodo').value||String(r.periodo)===$('fPeriodo').value)&&(!$('fNivel').value||r.nivel===$('fNivel').value)&&(!$('fMat').value||r.pendMat===$('fMat').value)&&(!$('fMens').value||r.pendMens===$('fMens').value)&&(!$('fDoc').value||r.docPend===$('fDoc').value)&&okCenario&&(!$('fPri').value||r.prioridade===$('fPri').value)&&(!busca||norm(r.aluno).includes(busca)||norm(r.ra).includes(busca))});render()}
+function render(){const total=filtered.length;$('kTotal').textContent=total;$('kProntos').textContent=filtered.filter(r=>!yesPend(r.pendMat)&&!yesPend(r.pendMens)).length;$('kMat').textContent=filtered.filter(r=>yesPend(r.pendMat)).length;$('kMens').textContent=filtered.filter(r=>yesPend(r.pendMens)).length;$('kDoc').textContent=filtered.filter(r=>r.docPend==='Sim').length;$('kAv').textContent=filtered.filter(avOk).length;$('kAlta').textContent=filtered.filter(r=>r.prioridade==='Alta').length;$('counter').textContent=total+' registros';renderSummary();renderCharts();renderTable()}
+function renderSummary(){const total=filtered.length||1;const grupos=[{mat:true,label:'Com pendência Matrícula',cls:'matSim'},{mat:false,label:'Sem pendência Matrícula',cls:'matNao'}];let html='';for(const g of grupos){const base=filtered.filter(r=>yesPend(r.pendMat)===g.mat);html+=`<tr class="${g.cls}"><td class="grupo">${g.label}</td><td><b>${base.length}</b></td><td><b>${((base.length/total)*100).toFixed(2)}%</b></td></tr>`;for(const m of [{v:true,l:'Com pendência Mensalidade',c:'mensSim'},{v:false,l:'Sem pendência Mensalidade',c:'mensNao'}]){const sub=base.filter(r=>yesPend(r.pendMens)===m.v);html+=`<tr class="${m.c}"><td class="nivel2 grupo">${m.l}</td><td><b>${sub.length}</b></td><td><b>${((sub.length/total)*100).toFixed(2)}%</b></td></tr>`;for(const d of [{v:'Não',c:'docNao'},{v:'Sim',c:'docSim'}]){const q=sub.filter(r=>r.docPend===d.v).length;html+=`<tr class="${d.c}"><td class="nivel3">Pendência de Documentação: ${d.v}</td><td>${q}</td><td>${sub.length?((q/sub.length)*100).toFixed(2):'0.00'}%</td></tr>`}}}html+=`<tr style="background:#17365d;color:#fff;font-weight:800"><td>Total Geral</td><td>${filtered.length}</td><td>${filtered.length?'100.00':'0.00'}%</td></tr>`;$('summaryBody').innerHTML=html}
+function renderCharts(){const by={};filtered.forEach(r=>{if(r.curso)by[r.curso]=(by[r.curso]||0)+1});const top=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,15);if(chartCursos)chartCursos.destroy();chartCursos=new Chart($('chartCursos'),{type:'bar',data:{labels:top.map(x=>x[0]),datasets:[{data:top.map(x=>x[1]),backgroundColor:'#1f4e78'}]},options:{indexAxis:'y',plugins:{legend:{display:false},datalabels:{anchor:'end',align:'right',font:{weight:'bold'}}},scales:{x:{beginAtZero:true}}}});const p=['Alta','Média','Baixa'].map(x=>filtered.filter(r=>r.prioridade===x).length);if(chartPrioridade)chartPrioridade.destroy();chartPrioridade=new Chart($('chartPrioridade'),{type:'doughnut',data:{labels:['Alta','Média','Baixa'],datasets:[{data:p,backgroundColor:['#d64545','#f4b942','#1f9d55']}]},options:{plugins:{datalabels:{color:'#fff',font:{weight:'bold'},formatter:v=>v||''}}}})}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function renderTable(){
+  const tb=$('tbody');
+  if(!filtered.length){
+    // FIX 8 — o render() inicial trocava "Anexe o arquivo" por "Nenhum registro
+    // encontrado" antes de existir qualquer base carregada.
+    const msg=data.length?'Nenhum registro encontrado.':'Anexe o arquivo para começar.';
+    tb.innerHTML=`<tr><td colspan="15" style="text-align:center;padding:30px">${msg}</td></tr>`;
+    $('trunc').style.display='none';
+    return;
+  }
+  const visiveis=filtered.slice(0,MAX_LINHAS);
+  // A tabela sempre cortou em 2000 linhas em silêncio — quem estava na 2001 não
+  // tinha onde lançar contato e ninguém era avisado.
+  if(filtered.length>MAX_LINHAS){
+    $('trunc').textContent=`⚠️ Exibindo ${MAX_LINHAS} de ${filtered.length}. Refine os filtros para lançar contato nos demais.`;
+    $('trunc').style.display='inline-block';
+  } else $('trunc').style.display='none';
+
+  tb.innerHTML=visiveis.map(r=>{
+    const tk=fbKey(dataKey(r));                // chave do tracking na nuvem
+    const tr=loadTrack(tk,r.ra);
+    const cls=r.prioridade==='Alta'?'alta':r.prioridade==='Média'?'media':'baixa';
+    return `<tr><td><span class="badge ${cls}">${r.prioridade}</span></td><td><b>${esc(r.aluno)}</b></td><td>${esc(r.ra)}</td><td>${esc(r.curso)}</td><td>${esc(r.periodo)}</td><td>${esc(r.tel1||r.tel2)}</td><td>${esc(r.email)}</td><td>${esc(r.avResumo||('AV1: '+r.av1+' | AV2: '+r.av2))}</td><td><span class="badge ${yesPend(r.pendMat)?'pend':'ok'}">${esc(r.pendMat||'Sem informação')}</span></td><td><span class="badge ${yesPend(r.pendMens)?'pend':'ok'}">${esc(r.pendMens||'Sem informação')}</span></td><td><span class="badge ${r.docPend==='Sim'?'pend':'ok'}">${r.docPend}</span></td><td>${esc(r.fies)}<br>${esc(r.prouni)}</td><td><select class="selectSmall track" data-track="${esc(tk)}" data-key="resultado"><option value="">Não contatado</option>${['Sem retorno','Contato realizado','Vai rematricular','Negociação financeira','Não pretende rematricular'].map(x=>`<option ${tr.resultado===x?'selected':''}>${x}</option>`).join('')}</select></td><td><input class="selectSmall track" data-track="${esc(tk)}" data-key="responsavel" value="${esc(tr.responsavel||'')}" placeholder="Nome"></td><td><textarea class="obs track" data-track="${esc(tk)}" data-key="observacao" placeholder="Registre o contato">${esc(tr.observacao||'')}</textarea></td></tr>`;
+  }).join('');
+
+  document.querySelectorAll('.track').forEach(el=>{
+    const commit=()=>saveTrack(el.dataset.track,el.dataset.key,el.value);
+    el.addEventListener('change',commit);
+    // change só dispara no blur: se o operador fecha a aba digitando, perde.
+    if(el.tagName!=='SELECT'){let t;el.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(commit,400)})}
+  });
+}
+
+$('file').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(!isAdmin){alert('Apenas administradores podem importar a base.');e.target.value='';return}
+  $('status').textContent='Lendo '+f.name+'...';
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const importados=parseWorkbook(wb);
+      const desconhecidos=auditPend(importados);
+      const resultado=mergeImportedData(data,importados);
+      data=resultado.dados;
+      setFilters();
+      apply();   // FIX 4 — era filtered=[...data]+render(), que ignorava os filtros
+                 // não reconstruídos por setFilters (documentação, cenário,
+                 // prioridade, busca): eles ficavam marcados na tela sem efeito.
+      $('status').textContent=`${data.length} alunos na base | ${resultado.novos} novos | ${resultado.atualizados} atualizados | ${resultado.inalterados} sem alteração | ${resultado.mantidos} mantidos da base anterior. Os registros de contato foram preservados.`;
+      salvarBaseNuvem();
+      const w=$('warnPend');
+      if(desconhecidos.length){
+        w.innerHTML=`<b>⚠️ Valores de pendência não reconhecidos:</b> ${desconhecidos.slice(0,10).map(esc).join(' · ')}${desconhecidos.length>10?` … (+${desconhecidos.length-10})`:''}<br>Estão sendo contados como <b>sem pendência</b>. Se algum deles significar pendência, o vocabulário precisa ser incluído em <code>RE_PEND_SIM</code>.`;
+        w.style.display='block';
+      } else w.style.display='none';
+    }catch(err){
+      console.error(err);
+      alert('Não foi possível ler o arquivo: '+err.message);
+      $('status').textContent='Erro na leitura';
+    }finally{e.target.value=''}
+  };
+  rd.readAsArrayBuffer(f);
+});
+
+['fCurso','fPeriodo','fNivel','fMat','fMens','fDoc','fCenario','fPri'].forEach(id=>$(id).addEventListener('change',apply));
+// FIX 5 — 'input' redesenhava até 2000 linhas x 15 células e destruía/recriava
+// os 2 gráficos A CADA TECLA. Debounce de 250ms.
+let buscaTimer;
+$('fBusca').addEventListener('input',()=>{clearTimeout(buscaTimer);buscaTimer=setTimeout(apply,250)});
+$('clearFilters').onclick=()=>{['fCurso','fPeriodo','fNivel','fMat','fMens','fDoc','fCenario','fPri','fBusca'].forEach(id=>$(id).value='');apply()};
+$('reset').onclick=()=>{
+  if(!isAdmin){alert('Apenas administradores podem limpar a base.');return}
+  if(!confirm('Apagar a base de alunos da nuvem para TODA a equipe? Os contatos já lançados são preservados.'))return;
+  data=[];filtered=[];
+  // FIX 6 — os dropdowns continuavam populados com os cursos da base apagada.
+  ['fCurso','fPeriodo','fNivel'].forEach(id=>$(id).innerHTML='<option value="">Todos</option>');
+  ['fMat','fMens'].forEach(id=>$(id).innerHTML='<option value="">Todas</option>');
+  ['fDoc','fCenario','fPri','fBusca'].forEach(id=>$(id).value='');
+  $('warnPend').style.display='none';
+  $('status').textContent='Nenhum arquivo carregado';
+  render();
+  // Só a base é removida da nuvem; /rematricula/tracking permanece.
+  db.ref('rematricula/base').set(null).catch(err=>{console.error(err);alert('Erro ao limpar a base na nuvem: '+err.message)});
+};
+$('export').onclick=()=>{if(!filtered.length)return alert('Não há dados para exportar.');const out=filtered.map(r=>{const t=loadTrack(dataKey(r),r.ra);return {'Prioridade':r.prioridade,'Aluno':r.aluno,'RA':r.ra,'Curso':r.curso,'Período':r.periodo,'Telefone':r.tel1||r.tel2,'E-mail':r.email,'AV1+AV2':r.avResumo,'Pendência Matrícula':r.pendMat,'Pendência Mensalidade':r.pendMens,'Pendência Documentação':r.docPend,'FIES':r.fies,'PROUNI':r.prouni,'Resultado contato':t.resultado||'','Responsável':t.responsavel||'','Observação':t.observacao||''}});const ws=XLSX.utils.json_to_sheet(out),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Rematricula');XLSX.writeFile(wb,'gestao_rematricula_filtrada.xlsx')};
+render();
+
+// ---------- LOGIN + SINCRONIZAÇÃO COM A NUVEM ----------
+function authErrorMsg(err){
+  const c=err&&err.code?err.code:'';
+  if(c.includes('invalid-credential')||c.includes('invalid-login-credentials')||c.includes('wrong-password')||c.includes('user-not-found')||c.includes('invalid-email'))return 'E-mail ou senha inválidos.';
+  if(c.includes('too-many-requests'))return 'Muitas tentativas. Aguarde alguns minutos.';
+  if(c.includes('network-request-failed'))return 'Falha de rede. Verifique a conexão.';
+  if(c.includes('user-disabled'))return 'Conta desativada. Fale com o administrador.';
+  return 'Não foi possível entrar: '+(err&&err.message?err.message:'erro desconhecido');
+}
+function doLogin(){
+  const email=$('authEmail').value.trim(),pass=$('authPass').value;
+  if(!email||!pass){$('authErr').textContent='Informe e-mail e senha.';return}
+  $('authBtn').disabled=true;$('authErr').textContent='';
+  authFB.signInWithEmailAndPassword(email,pass)
+    .catch(err=>{$('authErr').textContent=authErrorMsg(err)})
+    .finally(()=>{$('authBtn').disabled=false;$('authPass').value=''});
+}
+$('authBtn').onclick=doLogin;
+['authEmail','authPass'].forEach(id=>$(id).addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();doLogin()}}));
+$('authForgot').onclick=()=>{
+  const email=$('authEmail').value.trim();
+  if(!email){$('authErr').textContent='Digite seu e-mail acima e clique de novo.';return}
+  // Mesma mensagem em sucesso e erro: não revela quais e-mails existem.
+  const done=()=>{$('authErr').textContent='Se o e-mail estiver cadastrado, o link de redefinição foi enviado.'};
+  authFB.sendPasswordResetEmail(email).then(done).catch(done);
+};
+$('logoutBtn').onclick=()=>authFB.signOut();
+
+// Falha explícita: sem a Chave de API da Web o login não tem como funcionar.
+if(firebaseConfig.apiKey.includes('COLE_AQUI')){
+  $('authErr').textContent='Configuração pendente: cole a Chave de API da Web em firebaseConfig.apiKey neste arquivo.';
+  $('authBtn').disabled=true;
+}
+
+/* Atualiza só os campos do lead alterado por outro colega, sem redesenhar a
+   tabela (o que roubaria o foco de quem está digitando). O campo em foco
+   nunca é sobrescrito. */
+function patchTrackDom(k){
+  const t=tracking[k]||{};
+  ['resultado','responsavel','observacao'].forEach(campo=>{
+    const el=document.querySelector(`.track[data-track="${CSS.escape(k)}"][data-key="${campo}"]`);
+    if(el&&document.activeElement!==el&&String(el.value)!==String(t[campo]??''))el.value=t[campo]??'';
+  });
+}
+
+/* Contatos que ficaram salvos só neste navegador (versão localStorage) sobem
+   uma única vez para a nuvem — sem sobrescrever o que já existe lá. */
+function migrarLocalStorage(){
+  try{
+    if(localStorage.getItem('remat_cloud_migrado')==='1')return;
+    const updates={};let n=0;
+    for(let i=0;i<localStorage.length;i++){
+      const lsk=localStorage.key(i);
+      if(!lsk||!lsk.startsWith('remat_')||lsk==='remat_cloud_migrado')continue;
+      let obj;try{obj=JSON.parse(localStorage.getItem(lsk)||'{}')}catch{continue}
+      const campos={};
+      ['resultado','responsavel','observacao'].forEach(c=>{if(obj[c]!=null&&String(obj[c]).trim()!=='')campos[c]=String(obj[c])});
+      if(!Object.keys(campos).length)continue;
+      const k=fbKey(lsk.slice(6));
+      if(tracking[k])continue; // a nuvem tem prioridade
+      campos.atualizadoPor=((authFB.currentUser&&authFB.currentUser.email)||'')+' (migração local)';
+      campos.atualizadoEm=new Date().toISOString();
+      updates[k]=campos;n++;
+    }
+    if(!n){localStorage.setItem('remat_cloud_migrado','1');return}
+    db.ref('rematricula/tracking').update(updates).then(()=>{
+      localStorage.setItem('remat_cloud_migrado','1');
+      alert(n+' contato(s) que estavam salvos só neste navegador foram enviados para a nuvem.');
+    }).catch(err=>{console.error(err)/* tenta de novo na próxima sessão */});
+  }catch(e){console.error(e)}
+}
+
+function attachCloud(){
+  baseRef=db.ref('rematricula/base');
+  trackRef=db.ref('rematricula/tracking');
+  trackRef.on('child_added',s=>{tracking[s.key]=s.val()||{};if(cloudPronto)patchTrackDom(s.key)});
+  trackRef.on('child_changed',s=>{tracking[s.key]=s.val()||{};patchTrackDom(s.key)});
+  trackRef.on('child_removed',s=>{delete tracking[s.key];patchTrackDom(s.key)});
+  baseRef.on('value',snap=>{
+    const v=snap.val();
+    if(v&&v.rows){
+      const raw=Array.isArray(v.rows)?v.rows.filter(Boolean):Object.values(v.rows).filter(Boolean);
+      // Recalcula campos derivados: garante consistência mesmo que a base
+      // tenha sido publicada por uma versão diferente da página.
+      data=raw.map(r=>{const o={...r};o.docPend=yesPend(o.docRaw)?'Sim':'Não';o.prioridade=priority(o);return o});
+      setFilters();apply();
+      $('status').textContent=`${data.length} alunos na base (nuvem)`
+        +(v.atualizadoEm?` | atualizada em ${new Date(v.atualizadoEm).toLocaleString('pt-BR')}`:'')
+        +(v.atualizadoPor?` por ${v.atualizadoPor}`:'');
+    } else {
+      data=[];setFilters();apply();
+      $('status').textContent='Nenhuma base publicada na nuvem.'+(isAdmin?' Anexe o Excel para publicar.':' Aguarde o administrador importar.');
+    }
+    if(!cloudPronto){cloudPronto=true;migrarLocalStorage();renderTable()}
+  },err=>{console.error(err);alert('Erro ao carregar a base da nuvem: '+err.message)});
+}
+function detachCloud(){
+  if(baseRef){baseRef.off();baseRef=null}
+  if(trackRef){trackRef.off();trackRef=null}
+  tracking={};cloudPronto=false;
+}
+
+authFB.onAuthStateChanged(user=>{
+  if(!user){
+    detachCloud();
+    userProfile=null;isAdmin=false;data=[];filtered=[];
+    $('appRoot').style.display='none';
+    $('userBar').style.display='none';
+    $('authOverlay').style.display='flex';
+    return;
+  }
+  // O perfil de acesso mora em /users/{uid}; sem ele (ou inativo), não entra.
+  db.ref('users/'+user.uid).once('value').then(snap=>{
+    const p=snap.val();
+    if(!p||p.active!==true){
+      $('authErr').textContent='Sua conta não tem perfil de acesso liberado. Fale com o administrador.';
+      return authFB.signOut();
+    }
+    userProfile=p;isAdmin=p.role==='admin';
+    $('authOverlay').style.display='none';
+    $('authErr').textContent='';
+    $('userBarInfo').textContent='👤 '+(p.email||'')+(isAdmin?' · Administrador':'');
+    $('userBar').style.display='flex';
+    $('appRoot').style.display='block';
+    // Importar/limpar a base: só admin (a rule barra de qualquer forma).
+    $('importLabel').style.display=isAdmin?'':'none';
+    $('reset').style.display=isAdmin?'':'none';
+    attachCloud();
+  }).catch(err=>{
+    console.error(err);
+    $('authErr').textContent='Não foi possível carregar seu perfil ('+err.message+'). As Security Rules foram publicadas?';
+    authFB.signOut();
+  });
+});
+</script></body></html>
